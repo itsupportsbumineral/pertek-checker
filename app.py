@@ -139,12 +139,12 @@ Struktur JSON yang HARUS diikuti:
       }
     ],
     "ringkasan": {
-      "hs_code": "Sesuai",
-      "uraian_barang": "Sesuai",
-      "spesifikasi_teknis": "Sesuai",
-      "jumlah_satuan": "Sesuai",
-      "negara_muat": "Sesuai",
-      "pelabuhan_tujuan": "Sesuai"
+      "hs_code": {"status": "Sesuai", "keterangan": ""},
+      "uraian_barang": {"status": "Sesuai", "keterangan": ""},
+      "spesifikasi_teknis": {"status": "Sesuai", "keterangan": ""},
+      "jumlah_satuan": {"status": "Sesuai", "keterangan": "jika Tidak Sesuai, jelaskan singkat: misal 'HS 7208.27.19: PI=500 ton, Pertek=400 ton'"},
+      "negara_muat": {"status": "Sesuai", "keterangan": ""},
+      "pelabuhan_tujuan": {"status": "Sesuai", "keterangan": ""}
     }
   },
 
@@ -353,7 +353,7 @@ def render_results(result):
     st.markdown("### Kesimpulan Akhir")
 
     rows = []
-    rows.append(("Identitas perusahaan", id_data.get("status", "N/A")))
+    rows.append(("Identitas perusahaan", id_data.get("status", "N/A"), ""))
 
     ringkasan = spec_data.get("ringkasan", {})
     for key, label in [
@@ -364,21 +364,27 @@ def render_results(result):
         ("negara_muat", "Negara muat"),
         ("pelabuhan_tujuan", "Pelabuhan tujuan"),
     ]:
-        rows.append((label, ringkasan.get(key, "N/A")))
+        val = ringkasan.get(key, "N/A")
+        if isinstance(val, dict):
+            rows.append((label, val.get("status", "N/A"), val.get("keterangan", "")))
+        else:
+            rows.append((label, val, ""))
 
-    rows.append(("Data PI vs Pertek", pi_data.get("status", "N/A")))
-    rows.append(("Profil usaha", vpti_data.get("profil_usaha", "N/A")))
-    rows.append(("Kewajiban VPTI/LS", "Wajib VPTI/LS" if wajib else "Tidak wajib VPTI/LS"))
+    rows.append(("Data PI vs Pertek", pi_data.get("status", "N/A"), ""))
+    rows.append(("Profil usaha", vpti_data.get("profil_usaha", "N/A"), ""))
+    rows.append(("Kewajiban VPTI/LS", "Wajib VPTI/LS" if wajib else "Tidak wajib VPTI/LS", ""))
 
     # Build HTML table
     html = '<table class="summary-table">'
     html += '<tr><th style="width:35%">Aspek Pemeriksaan</th><th>Hasil</th></tr>'
 
-    for label, status in rows:
+    for label, status, keterangan in rows:
         if "Sesuai" in str(status) and "Tidak" not in str(status):
             display = f'&#9989; {status}'
         elif "Tidak Sesuai" in str(status):
             display = f'&#10060; {status}'
+            if keterangan:
+                display += f'<br><small style="color:#6b7280;">{keterangan}</small>'
         elif "Tidak wajib" in str(status):
             display = f'&#9989; {status}'
         elif "Wajib" in str(status):
@@ -459,7 +465,10 @@ def build_download_text(result, rows):
     lines.append("KESIMPULAN AKHIR")
     lines.append("=" * 60)
     for label, status in rows:
-        lines.append(f"  {label}: {status}")
+        line = f"  {label}: {status}"
+        if keterangan:
+            line += f" ({keterangan})"
+        lines.append(line)
     lines.append("")
 
     kesimpulan = result.get("kesimpulan", {})
