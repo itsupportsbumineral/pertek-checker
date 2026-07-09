@@ -130,8 +130,6 @@ Struktur JSON yang HARUS diikuti:
         "jumlah_pi": "...",
         "jumlah_pertek": "...",
         "satuan": "...",
-        "negara_asal_pi": "...",
-        "negara_asal_pertek": "...",
         "negara_muat_pi": "...",
         "negara_muat_pertek": "...",
         "pelabuhan_pi": "...",
@@ -145,7 +143,6 @@ Struktur JSON yang HARUS diikuti:
       "uraian_barang": "Sesuai",
       "spesifikasi_teknis": "Sesuai",
       "jumlah_satuan": "Sesuai",
-      "negara_asal": "Sesuai",
       "negara_muat": "Sesuai",
       "pelabuhan_tujuan": "Sesuai"
     }
@@ -291,7 +288,7 @@ def render_results(result):
     spec_items = spec_data.get("items", [])
     if spec_items:
         html = '<table class="detail-table">'
-        html += '<tr><th>HS Code</th><th>Uraian</th><th>Spec PI</th><th>Spec Pertek</th><th>Jumlah PI</th><th>Jumlah Pertek</th><th>N. Asal PI</th><th>N. Asal Pertek</th><th>Status</th></tr>'
+        html += '<tr><th>HS Code</th><th>Uraian</th><th>Spec PI</th><th>Spec Pertek</th><th>Jumlah PI</th><th>Jumlah Pertek</th><th>N. Muat PI</th><th>N. Muat Pertek</th><th>Status</th></tr>'
         for item in spec_items:
             status = item.get("status", "N/A")
             icon = "&#9989;" if status == "Sesuai" else "&#10060;"
@@ -302,8 +299,8 @@ def render_results(result):
                      f'<td>{item.get("spesifikasi_pertek", "")}</td>'
                      f'<td>{item.get("jumlah_pi", "")}</td>'
                      f'<td>{item.get("jumlah_pertek", "")}</td>'
-                     f'<td>{item.get("negara_asal_pi", "")}</td>'
-                     f'<td>{item.get("negara_asal_pertek", "")}</td>'
+                     f'<td>{item.get("negara_muat_pi", "")}</td>'
+                     f'<td>{item.get("negara_muat_pertek", "")}</td>'
                      f'<td>{icon} {status}</td>'
                      f'</tr>')
         html += '</table>'
@@ -364,7 +361,6 @@ def render_results(result):
         ("uraian_barang", "Uraian barang"),
         ("spesifikasi_teknis", "Spesifikasi teknis"),
         ("jumlah_satuan", "Jumlah dan satuan"),
-        ("negara_asal", "Negara asal"),
         ("negara_muat", "Negara muat"),
         ("pelabuhan_tujuan", "Pelabuhan tujuan"),
     ]:
