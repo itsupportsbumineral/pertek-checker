@@ -3,6 +3,7 @@ import pdfplumber
 import json
 import io
 import os
+import time
 import requests
 from datetime import datetime
 
@@ -153,7 +154,7 @@ Berikan output dalam format JSON sesuai struktur yang diminta."""
 # CALL GEMINI API
 # ============================================================
 def analyze_documents(api_key, pdf_texts):
-    """Send documents to Gemini API for analysis."""
+    """Send documents to Gemini API for analysis with retry."""
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
 
     payload = {
@@ -171,8 +172,21 @@ def analyze_documents(api_key, pdf_texts):
         }
     }
 
-    response = requests.post(url, json=payload, timeout=180)
-    response.raise_for_status()
+    # Retry up to 3 times for server errors (503, 500, etc.)
+    max_retries = 3
+    for attempt in range(max_retries):
+        response = requests.post(url, json=payload, timeout=180)
+
+        if response.status_code in (500, 502, 503, 429):
+            if attempt < max_retries - 1:
+                wait = (attempt + 1) * 5  # 5s, 10s, 15s
+                time.sleep(wait)
+                continue
+            else:
+                raise ValueError(f"Server sedang sibuk setelah {max_retries} percobaan. Coba lagi nanti.")
+
+        response.raise_for_status()
+        break
 
     data = response.json()
 
@@ -489,19 +503,22 @@ if uploaded_files:
             try:
                 result = analyze_documents(api_key, pdf_texts)
                 st.session_state["analysis_result"] = result
-            except json.JSONDecodeError as e:
-                st.error("Error parsing hasil analisis. Coba lagi.")
-                st.exception(e)
+            except json.JSONDecodeError:
+                st.error("Error parsing hasil analisis. Coba klik Analisis lagi.")
             except requests.exceptions.HTTPError as e:
-                error_body = e.response.text if e.response else str(e)
-                if "API_KEY_INVALID" in error_body or "401" in str(e.response.status_code):
+                status = e.response.status_code if e.response else 0
+                if status == 401 or status == 403:
                     st.error("API Key tidak valid. Hubungi administrator.")
-                elif "429" in str(e.response.status_code):
-                    st.error("Rate limit tercapai. Tunggu beberapa detik lalu coba lagi.")
+                elif status == 429:
+                    st.error("Rate limit tercapai. Tunggu 1 menit lalu coba lagi.")
+                elif status >= 500:
+                    st.error("Server sedang sibuk. Tunggu beberapa detik lalu coba lagi.")
                 else:
-                    st.error(f"Error: {error_body}")
-            except Exception as e:
-                st.error(f"Error: {e}")
+                    st.error(f"Terjadi error (kode {status}). Coba lagi.")
+            except ValueError as e:
+                st.error(str(e))
+            except Exception:
+                st.error("Terjadi error. Coba lagi dalam beberapa detik.")
 
     # Show results if available
     if "analysis_result" in st.session_state and st.session_state["analysis_result"]:
