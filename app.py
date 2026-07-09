@@ -1,9 +1,9 @@
 import streamlit as st
 import pdfplumber
-import anthropic
 import json
 import io
 import os
+import requests
 from datetime import datetime
 
 # ============================================================
@@ -14,8 +14,6 @@ st.set_page_config(
     page_icon="📋",
     layout="wide",
 )
-
-
 
 st.markdown("""
 <style>
@@ -35,16 +33,11 @@ st.markdown("""
 # ============================================================
 def load_api_key():
     """Load API key from Streamlit secrets or session state."""
-    # Try secrets first (for Streamlit Cloud)
     try:
-        return st.secrets["ANTHROPIC_API_KEY"]
+        return st.secrets["GEMINI_API_KEY"]
     except Exception:
         pass
     return st.session_state.get("saved_api_key", "")
-
-
-def save_api_key(key):
-    st.session_state["saved_api_key"] = key.strip()
 
 
 # ============================================================
@@ -157,27 +150,38 @@ Berikan output dalam format JSON sesuai struktur yang diminta."""
 
 
 # ============================================================
-# CALL CLAUDE API
+# CALL GEMINI API
 # ============================================================
 def analyze_documents(api_key, pdf_texts):
-    """Send documents to Claude API for analysis."""
-    client = anthropic.Anthropic(api_key=api_key)
+    """Send documents to Gemini API for analysis."""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
 
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=8000,
-        system=SYSTEM_PROMPT,
-        messages=[
-            {"role": "user", "content": build_user_prompt(pdf_texts)}
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": SYSTEM_PROMPT + "\n\n" + build_user_prompt(pdf_texts)}
+                ]
+            }
         ],
-    )
+        "generationConfig": {
+            "temperature": 0.1,
+            "maxOutputTokens": 8000,
+            "responseMimeType": "application/json",
+        }
+    }
 
-    response_text = message.content[0].text.strip()
+    response = requests.post(url, json=payload, timeout=120)
+    response.raise_for_status()
+
+    data = response.json()
+
+    # Extract text from Gemini response
+    response_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
 
     # Clean up response - remove markdown code blocks if present
     if response_text.startswith("```"):
         lines = response_text.split("\n")
-        # Remove first line (```json) and last line (```)
         lines = [l for l in lines if not l.strip().startswith("```")]
         response_text = "\n".join(lines)
 
@@ -285,7 +289,7 @@ def render_results(result):
 
     # Penandatangan
     pen_status = pen_data.get("status", "N/A")
-    pen_detail = pen_data.get("detail", "") if pen_status == "Sesuai" else pen_data.get("detail", "")
+    pen_detail = pen_data.get("detail", "")
     rows.append(("Penandatangan Rencana Distribusi", pen_status, pen_detail))
 
     # Spec items
@@ -477,18 +481,22 @@ if uploaded_files:
         st.error("API key belum dikonfigurasi. Hubungi administrator.")
     if st.button("Analisis & Cocokkan", type="primary", use_container_width=True, disabled=not api_key):
         with st.spinner("Menganalisis dokumen... (biasanya 15-30 detik)"):
-                try:
-                    result = analyze_documents(api_key, pdf_texts)
-                    st.session_state["analysis_result"] = result
-                except json.JSONDecodeError as e:
-                    st.error(f"Error parsing hasil analisis. Coba lagi.")
-                    st.exception(e)
-                except anthropic.AuthenticationError:
+            try:
+                result = analyze_documents(api_key, pdf_texts)
+                st.session_state["analysis_result"] = result
+            except json.JSONDecodeError as e:
+                st.error("Error parsing hasil analisis. Coba lagi.")
+                st.exception(e)
+            except requests.exceptions.HTTPError as e:
+                error_body = e.response.text if e.response else str(e)
+                if "API_KEY_INVALID" in error_body or "401" in str(e.response.status_code):
                     st.error("API Key tidak valid. Hubungi administrator.")
-                except anthropic.RateLimitError:
+                elif "429" in str(e.response.status_code):
                     st.error("Rate limit tercapai. Tunggu beberapa detik lalu coba lagi.")
-                except Exception as e:
-                    st.error(f"Error: {e}")
+                else:
+                    st.error(f"Error: {error_body}")
+            except Exception as e:
+                st.error(f"Error: {e}")
 
     # Show results if available
     if "analysis_result" in st.session_state and st.session_state["analysis_result"]:
