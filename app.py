@@ -94,12 +94,14 @@ def extract_pdf_text(uploaded_file):
 # ============================================================
 SYSTEM_PROMPT = """Anda adalah analis verifikasi dokumen impor di PT Sucofindo. Tugas Anda adalah mencocokkan dan menganalisis dokumen PI (Persetujuan Impor) dan Pertek (Persetujuan Teknis) dari Kementerian Perindustrian.
 
-ATURAN OUTPUT:
-- Output HANYA JSON valid, tanpa markdown code block, tanpa teks tambahan.
-- JANGAN gunakan narasi/paragraf panjang. Gunakan kalimat singkat dan to the point.
-- Untuk perbandingan item barang, berikan data per item dalam array (tabel).
+ATURAN PENTING:
+- Output HANYA JSON valid, tanpa markdown code block.
+- JANGAN narasi panjang, cukup kalimat singkat.
+- Saat membandingkan spesifikasi/uraian barang: jika MAKNA/ISI SAMA tapi beda format penulisan, urutan kata, singkatan, atau bahasa → ANGGAP SESUAI. Contoh: "SHEET/PLAT/COIL STAINLESS STEEL" vs "SHEET/PLAT/COIL STAINLESS STEEL, PLAT SS0.1 mm x 1M x 2M Grade: 201..." → isi sama, SESUAI.
+- Hanya anggap Tidak Sesuai jika ada perbedaan SUBSTANSIAL (beda HS code, beda jumlah angka, beda negara, beda jenis barang).
+- Untuk items barang: HANYA tampilkan item yang TIDAK SESUAI. Jangan tampilkan item yang sesuai.
 
-Struktur JSON yang HARUS diikuti:
+Struktur JSON:
 
 {
   "info": {
@@ -121,28 +123,25 @@ Struktur JSON yang HARUS diikuti:
 
   "spesifikasi_barang": {
     "status": "Sesuai" atau "Tidak Sesuai",
-    "items": [
+    "total_items": 25,
+    "total_sesuai": 23,
+    "total_tidak_sesuai": 2,
+    "items_tidak_sesuai": [
       {
         "hs_code": "...",
         "uraian": "...",
+        "perbedaan": "singkat: apa yang beda, misal 'Jumlah: PI=500 ton, Pertek=400 ton'",
         "spesifikasi_pi": "...",
         "spesifikasi_pertek": "...",
         "jumlah_pi": "...",
-        "jumlah_pertek": "...",
-        "satuan": "...",
-        "negara_muat_pi": "...",
-        "negara_muat_pertek": "...",
-        "pelabuhan_pi": "...",
-        "pelabuhan_pertek": "...",
-        "status": "Sesuai" atau "Tidak Sesuai",
-        "catatan": "singkat, hanya jika ada ketidaksesuaian"
+        "jumlah_pertek": "..."
       }
     ],
     "ringkasan": {
       "hs_code": {"status": "Sesuai", "keterangan": ""},
       "uraian_barang": {"status": "Sesuai", "keterangan": ""},
       "spesifikasi_teknis": {"status": "Sesuai", "keterangan": ""},
-      "jumlah_satuan": {"status": "Sesuai", "keterangan": "jika Tidak Sesuai, jelaskan singkat: misal 'HS 7208.27.19: PI=500 ton, Pertek=400 ton'"},
+      "jumlah_satuan": {"status": "Sesuai", "keterangan": "jika Tidak Sesuai: sebutkan HS mana dan angkanya"},
       "negara_muat": {"status": "Sesuai", "keterangan": ""},
       "pelabuhan_tujuan": {"status": "Sesuai", "keterangan": ""}
     }
@@ -153,7 +152,7 @@ Struktur JSON yang HARUS diikuti:
     "items": [
       {"aspek": "Nomor Pertek di PI", "pi": "...", "pertek": "...", "status": "Sesuai"},
       {"aspek": "Tanggal Pertek di PI", "pi": "...", "pertek": "...", "status": "Sesuai"},
-      {"aspek": "Komoditas", "pi": "sesuai Pertek", "pertek": "-", "status": "Sesuai"}
+      {"aspek": "Komoditas", "pi": "...", "pertek": "...", "status": "Sesuai"}
     ]
   },
 
@@ -162,20 +161,19 @@ Struktur JSON yang HARUS diikuti:
     "kbli": "...",
     "kbli_deskripsi": "...",
     "wajib": true atau false,
-    "alasan_singkat": "1 kalimat alasan",
-    "pengecualian": ["list pengecualian yang berlaku, kosong jika tidak ada"],
-    "profil_usaha": "1 kalimat deskripsi"
+    "alasan_singkat": "1 kalimat",
+    "pengecualian": [],
+    "profil_usaha": "1 kalimat"
   },
 
   "kesimpulan": {
-    "dapat_ditindaklanjuti": true atau false,
-    "ringkasan": "1-2 kalimat singkat",
-    "ketidaksesuaian": ["list aspek yang tidak sesuai, kosong jika semua sesuai"]
+    "status": "DAPAT DIPROSES" atau "TIDAK DAPAT DIPROSES",
+    "catatan": "1-2 kalimat singkat. Jika dapat diproses, tulis catatan rekomendasi singkat. Jika tidak, sebutkan alasan.",
+    "ketidaksesuaian": ["list singkat aspek yg tidak sesuai, kosong jika semua sesuai"]
   }
 }
 
 PENTING:
-- Analisis SEMUA aspek secara menyeluruh.
 - Untuk VPTI/LS, periksa pengecualian:
   * Impor ke KPBPB, KEK, atau TPB
   * Fasilitas KITE Pembebasan
@@ -185,8 +183,8 @@ PENTING:
   * Penerima fasilitas BMDTP
   * Kontraktor KKS Migas, Kontrak Karya, atau proyek ketenagalistrikan
   * Barang HS 7213.91.30, 7213.91.90, 7213.99.90 (C > 0,6%), 7225.50.90 (TMBP)
-- Jika data tidak tersedia di dokumen, tulis "Tidak tersedia"
-- JANGAN buat narasi panjang, cukup poin-poin singkat"""
+- Jika data tidak tersedia, tulis "Tidak tersedia"
+- INGAT: beda format/urutan penulisan BUKAN berarti Tidak Sesuai. Fokus pada isi/makna."""
 
 
 def build_user_prompt(pdf_texts):
@@ -282,29 +280,28 @@ def render_results(result):
         st.markdown(html, unsafe_allow_html=True)
     st.markdown("")
 
-    # 2. Spesifikasi Barang (tabel per item)
+    # 2. Spesifikasi Barang
     spec_data = result.get("spesifikasi_barang", {})
-    st.markdown("#### 2. Spesifikasi Barang")
-    spec_items = spec_data.get("items", [])
-    if spec_items:
+    total = spec_data.get("total_items", 0)
+    total_ok = spec_data.get("total_sesuai", 0)
+    total_bad = spec_data.get("total_tidak_sesuai", 0)
+    st.markdown(f"#### 2. Spesifikasi Barang ({total_ok}/{total} sesuai)")
+
+    tidak_sesuai_items = spec_data.get("items_tidak_sesuai", [])
+    if tidak_sesuai_items:
+        st.markdown(f"**{total_bad} item tidak sesuai:**")
         html = '<table class="detail-table">'
-        html += '<tr><th>HS Code</th><th>Uraian</th><th>Spec PI</th><th>Spec Pertek</th><th>Jumlah PI</th><th>Jumlah Pertek</th><th>N. Muat PI</th><th>N. Muat Pertek</th><th>Status</th></tr>'
-        for item in spec_items:
-            status = item.get("status", "N/A")
-            icon = "&#9989;" if status == "Sesuai" else "&#10060;"
+        html += '<tr><th>HS Code</th><th>Uraian</th><th>Perbedaan</th></tr>'
+        for item in tidak_sesuai_items:
             html += (f'<tr>'
                      f'<td>{item.get("hs_code", "")}</td>'
                      f'<td>{item.get("uraian", "")}</td>'
-                     f'<td>{item.get("spesifikasi_pi", "")}</td>'
-                     f'<td>{item.get("spesifikasi_pertek", "")}</td>'
-                     f'<td>{item.get("jumlah_pi", "")}</td>'
-                     f'<td>{item.get("jumlah_pertek", "")}</td>'
-                     f'<td>{item.get("negara_muat_pi", "")}</td>'
-                     f'<td>{item.get("negara_muat_pertek", "")}</td>'
-                     f'<td>{icon} {status}</td>'
+                     f'<td>{item.get("perbedaan", "")}</td>'
                      f'</tr>')
         html += '</table>'
         st.markdown(html, unsafe_allow_html=True)
+    else:
+        st.success(f"Seluruh {total} item sesuai")
     st.markdown("")
 
     # 3. Data PI vs Pertek (tabel)
@@ -398,16 +395,23 @@ def render_results(result):
     st.markdown(html, unsafe_allow_html=True)
 
     # Kesimpulan final
+    st.markdown("### Kesimpulan")
     kesimpulan = result.get("kesimpulan", {})
-    dapat = kesimpulan.get("dapat_ditindaklanjuti", True)
+    status_str = kesimpulan.get("status", "DAPAT DIPROSES")
+    catatan = kesimpulan.get("catatan", "")
     ketidaksesuaian = kesimpulan.get("ketidaksesuaian", [])
 
-    if dapat:
-        st.success(f"**Dapat ditindaklanjuti.** {kesimpulan.get('ringkasan', '')}")
+    if "DAPAT" in status_str and "TIDAK" not in status_str:
+        msg = f"**{status_str}**"
+        if catatan:
+            msg += f"\n\nCatatan: {catatan}"
+        st.success(msg)
     else:
-        msg = f"**Tidak dapat ditindaklanjuti.**\n\n{kesimpulan.get('ringkasan', '')}"
+        msg = f"**{status_str}**"
+        if catatan:
+            msg += f"\n\n{catatan}"
         if ketidaksesuaian:
-            msg += "\n\n**Ketidaksesuaian:**\n"
+            msg += "\n\n**Ketidaksesuaian:**"
             for k in ketidaksesuaian:
                 msg += f"\n- {k}"
         st.error(msg)
@@ -436,12 +440,17 @@ def build_download_text(result, rows):
     lines.append("")
 
     # 2. Spesifikasi
-    lines.append("2. SPESIFIKASI BARANG")
     spec_data = result.get("spesifikasi_barang", {})
-    for item in spec_data.get("items", []):
-        lines.append(f"   HS {item.get('hs_code', '')}: {item.get('uraian', '')} -> {item.get('status', '')}")
-        if item.get("catatan"):
-            lines.append(f"     Catatan: {item['catatan']}")
+    total = spec_data.get("total_items", 0)
+    total_ok = spec_data.get("total_sesuai", 0)
+    lines.append(f"2. SPESIFIKASI BARANG ({total_ok}/{total} sesuai)")
+    tidak_sesuai = spec_data.get("items_tidak_sesuai", [])
+    if tidak_sesuai:
+        lines.append("   Item tidak sesuai:")
+        for item in tidak_sesuai:
+            lines.append(f"   - HS {item.get('hs_code', '')}: {item.get('perbedaan', '')}")
+    else:
+        lines.append("   Seluruh item sesuai")
     lines.append("")
 
     # 3. PI vs Pertek
@@ -464,7 +473,7 @@ def build_download_text(result, rows):
     lines.append("=" * 60)
     lines.append("KESIMPULAN AKHIR")
     lines.append("=" * 60)
-    for label, status in rows:
+    for label, status, keterangan in rows:
         line = f"  {label}: {status}"
         if keterangan:
             line += f" ({keterangan})"
@@ -472,9 +481,9 @@ def build_download_text(result, rows):
     lines.append("")
 
     kesimpulan = result.get("kesimpulan", {})
-    dapat = kesimpulan.get("dapat_ditindaklanjuti", True)
-    lines.append(f"{'DAPAT' if dapat else 'TIDAK DAPAT'} DITINDAKLANJUTI")
-    lines.append(kesimpulan.get("ringkasan", ""))
+    lines.append(kesimpulan.get("status", ""))
+    if kesimpulan.get("catatan"):
+        lines.append(f"Catatan: {kesimpulan['catatan']}")
     ketidaksesuaian = kesimpulan.get("ketidaksesuaian", [])
     if ketidaksesuaian:
         lines.append("Ketidaksesuaian:")
