@@ -442,22 +442,8 @@ def build_download_text(result, rows):
 st.title("Pertek Checker")
 st.caption("Upload PDF PI dan Pertek → otomatis dianalisis dan dicocokkan")
 
-# Sidebar: API Key
-with st.sidebar:
-    st.markdown("### Pengaturan")
-    saved_key = load_api_key()
-    api_key = st.text_input(
-        "Claude API Key",
-        value=saved_key,
-        type="password",
-        help="Dapatkan di console.anthropic.com. Key disimpan lokal di komputer Anda.",
-    )
-    if api_key and api_key != saved_key:
-        save_api_key(api_key)
-        st.success("API key tersimpan!")
-
-    st.divider()
-    st.caption("Data Anda diproses langsung via API key Anda sendiri. Tidak ada data yang disimpan di server lain.")
+# API Key: otomatis dari secrets, client tidak perlu tahu
+api_key = load_api_key()
 
 # Main area
 st.markdown("### Upload Dokumen PDF")
@@ -487,11 +473,10 @@ if uploaded_files:
 
     # Analyze button
     st.divider()
+    if not api_key:
+        st.error("API key belum dikonfigurasi. Hubungi administrator.")
     if st.button("Analisis & Cocokkan", type="primary", use_container_width=True, disabled=not api_key):
-        if not api_key:
-            st.error("Masukkan Claude API Key di sidebar terlebih dahulu.")
-        else:
-            with st.spinner("Menganalisis dokumen... (biasanya 15-30 detik)"):
+        with st.spinner("Menganalisis dokumen... (biasanya 15-30 detik)"):
                 try:
                     result = analyze_documents(api_key, pdf_texts)
                     st.session_state["analysis_result"] = result
@@ -499,7 +484,7 @@ if uploaded_files:
                     st.error(f"Error parsing hasil analisis. Coba lagi.")
                     st.exception(e)
                 except anthropic.AuthenticationError:
-                    st.error("API Key tidak valid. Periksa kembali di sidebar.")
+                    st.error("API Key tidak valid. Hubungi administrator.")
                 except anthropic.RateLimitError:
                     st.error("Rate limit tercapai. Tunggu beberapa detik lalu coba lagi.")
                 except Exception as e:
@@ -525,12 +510,11 @@ if uploaded_files:
 elif not uploaded_files:
     st.markdown("---")
     st.markdown("**Cara pakai:**")
-    st.markdown("1. Masukkan Claude API Key di sidebar (sekali saja, otomatis tersimpan)")
-    st.markdown("2. Upload file PDF (PI dan Pertek, bisa lebih dari 1)")
-    st.markdown("3. Klik **Analisis & Cocokkan**")
-    st.markdown("4. Hasil langsung muncul + bisa download laporan")
+    st.markdown("1. Upload file PDF (PI dan Pertek, bisa lebih dari 1)")
+    st.markdown("2. Klik **Analisis & Cocokkan**")
+    st.markdown("3. Hasil langsung muncul + bisa download laporan")
 
 
 # Footer
 st.markdown("---")
-st.caption("Pertek Checker v2.0 | 100% lokal & privat - data diproses via API key Anda sendiri")
+st.caption("Pertek Checker v2.0 | Data diproses secara aman dan tidak disimpan.")
