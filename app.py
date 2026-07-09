@@ -166,18 +166,23 @@ def analyze_documents(api_key, pdf_texts):
         ],
         "generationConfig": {
             "temperature": 0.1,
-            "maxOutputTokens": 8000,
+            "maxOutputTokens": 65536,
             "responseMimeType": "application/json",
         }
     }
 
-    response = requests.post(url, json=payload, timeout=120)
+    response = requests.post(url, json=payload, timeout=180)
     response.raise_for_status()
 
     data = response.json()
 
+    # Check if response was truncated
+    candidate = data["candidates"][0]
+    if candidate.get("finishReason") == "MAX_TOKENS":
+        raise ValueError("Response terpotong. Dokumen terlalu panjang, coba upload lebih sedikit file.")
+
     # Extract text from Gemini response
-    response_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+    response_text = candidate["content"]["parts"][0]["text"].strip()
 
     # Clean up response - remove markdown code blocks if present
     if response_text.startswith("```"):
