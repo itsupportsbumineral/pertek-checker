@@ -35,6 +35,30 @@ st.markdown("""
 
 
 # ============================================================
+# PASSWORD PROTECTION
+# ============================================================
+def check_password():
+    """Return True if user entered correct password."""
+    if st.session_state.get("authenticated"):
+        return True
+
+    try:
+        correct_password = st.secrets["APP_PASSWORD"]
+    except Exception:
+        return True  # No password set, skip
+
+    st.markdown("### Masukkan Password")
+    password = st.text_input("Password", type="password", key="password_input")
+    if st.button("Masuk", type="primary"):
+        if password == correct_password:
+            st.session_state["authenticated"] = True
+            st.rerun()
+        else:
+            st.error("Password salah.")
+    return False
+
+
+# ============================================================
 # API KEY MANAGEMENT
 # ============================================================
 def load_api_key():
@@ -458,6 +482,10 @@ def build_download_text(result, rows):
 # ============================================================
 # MAIN UI
 # ============================================================
+# Password check
+if not check_password():
+    st.stop()
+
 st.title("Pertek Checker")
 st.caption("Upload PDF PI dan Pertek, otomatis dianalisis dan dicocokkan")
 
