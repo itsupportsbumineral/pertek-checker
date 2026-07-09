@@ -23,6 +23,11 @@ st.markdown("""
         border: 1px solid #e5e7eb; padding: 10px 14px; text-align: left;
     }
     .summary-table th { background: #f9fafb; font-weight: 600; }
+    .detail-table { width: 100%; border-collapse: collapse; margin: 0.5rem 0; }
+    .detail-table th, .detail-table td {
+        border: 1px solid #e5e7eb; padding: 8px 12px; text-align: left; font-size: 0.9rem;
+    }
+    .detail-table th { background: #f3f4f6; font-weight: 600; }
     .block-container { max-width: 1100px; }
     .stAlert p { font-size: 0.95rem; }
 </style>
@@ -65,39 +70,70 @@ def extract_pdf_text(uploaded_file):
 # ============================================================
 SYSTEM_PROMPT = """Anda adalah analis verifikasi dokumen impor di PT Sucofindo. Tugas Anda adalah mencocokkan dan menganalisis dokumen PI (Persetujuan Impor) dan Pertek (Persetujuan Teknis) dari Kementerian Perindustrian.
 
-Anda HARUS memberikan output dalam format JSON yang valid dengan struktur berikut:
+ATURAN OUTPUT:
+- Output HANYA JSON valid, tanpa markdown code block, tanpa teks tambahan.
+- JANGAN gunakan narasi/paragraf panjang. Gunakan kalimat singkat dan to the point.
+- Untuk perbandingan item barang, berikan data per item dalam array (tabel).
+
+Struktur JSON yang HARUS diikuti:
 
 {
-  "ringkasan_pembuka": "Paragraf pembuka yang menyebutkan nomor PI, tanggal, nomor Pertek, tanggal, dan bahwa pencocokan telah dilakukan.",
+  "info": {
+    "nomor_pi": "...",
+    "tanggal_pi": "...",
+    "nomor_pertek": "...",
+    "tanggal_pertek": "...",
+    "jenis_api": "API-P" atau "API-U"
+  },
 
   "identitas_perusahaan": {
     "status": "Sesuai" atau "Tidak Sesuai",
-    "nama": "...",
-    "nib": "...",
-    "alamat": "...",
-    "detail": "Penjelasan lengkap..."
-  },
-
-  "penandatangan": {
-    "status": "Sesuai" atau "Tidak Sesuai" atau "Tidak berlaku (API-P)",
-    "detail": "Penjelasan..."
+    "items": [
+      {"aspek": "Nama", "pi": "...", "pertek": "...", "status": "Sesuai"},
+      {"aspek": "NIB", "pi": "...", "pertek": "...", "status": "Sesuai"},
+      {"aspek": "Alamat", "pi": "...", "pertek": "...", "status": "Sesuai"}
+    ]
   },
 
   "spesifikasi_barang": {
     "status": "Sesuai" atau "Tidak Sesuai",
-    "hs_code": "Sesuai" atau "Tidak Sesuai",
-    "uraian_barang": "Sesuai" atau "Tidak Sesuai",
-    "spesifikasi_teknis": "Sesuai" atau "Tidak Sesuai",
-    "jumlah_satuan": "Sesuai" atau "Tidak Sesuai",
-    "negara_asal": "Sesuai" atau "Tidak Sesuai",
-    "negara_muat": "Sesuai" atau "Tidak Sesuai",
-    "pelabuhan_tujuan": "Sesuai" atau "Tidak Sesuai",
-    "detail": "Penjelasan lengkap termasuk perubahan jika ada..."
+    "items": [
+      {
+        "hs_code": "...",
+        "uraian": "...",
+        "spesifikasi_pi": "...",
+        "spesifikasi_pertek": "...",
+        "jumlah_pi": "...",
+        "jumlah_pertek": "...",
+        "satuan": "...",
+        "negara_asal_pi": "...",
+        "negara_asal_pertek": "...",
+        "negara_muat_pi": "...",
+        "negara_muat_pertek": "...",
+        "pelabuhan_pi": "...",
+        "pelabuhan_pertek": "...",
+        "status": "Sesuai" atau "Tidak Sesuai",
+        "catatan": "singkat, hanya jika ada ketidaksesuaian"
+      }
+    ],
+    "ringkasan": {
+      "hs_code": "Sesuai",
+      "uraian_barang": "Sesuai",
+      "spesifikasi_teknis": "Sesuai",
+      "jumlah_satuan": "Sesuai",
+      "negara_asal": "Sesuai",
+      "negara_muat": "Sesuai",
+      "pelabuhan_tujuan": "Sesuai"
+    }
   },
 
   "data_pi_vs_pertek": {
     "status": "Sesuai" atau "Tidak Sesuai",
-    "detail": "Penjelasan..."
+    "items": [
+      {"aspek": "Nomor Pertek di PI", "pi": "...", "pertek": "...", "status": "Sesuai"},
+      {"aspek": "Tanggal Pertek di PI", "pi": "...", "pertek": "...", "status": "Sesuai"},
+      {"aspek": "Komoditas", "pi": "sesuai Pertek", "pertek": "-", "status": "Sesuai"}
+    ]
   },
 
   "vpti_ls": {
@@ -105,48 +141,43 @@ Anda HARUS memberikan output dalam format JSON yang valid dengan struktur beriku
     "kbli": "...",
     "kbli_deskripsi": "...",
     "wajib": true atau false,
-    "alasan": "Penjelasan lengkap mengapa wajib/tidak wajib...",
-    "pengecualian": ["list pengecualian yang berlaku"],
-    "profil_usaha": "Deskripsi profil usaha...",
-    "pernyataan_pi": "Apa yang dinyatakan di PI tentang VPTI/LS, jika ada"
+    "alasan_singkat": "1 kalimat alasan",
+    "pengecualian": ["list pengecualian yang berlaku, kosong jika tidak ada"],
+    "profil_usaha": "1 kalimat deskripsi"
   },
 
-  "kesimpulan_akhir": "Paragraf kesimpulan akhir yang merangkum seluruh hasil pencocokan."
+  "kesimpulan": {
+    "dapat_ditindaklanjuti": true atau false,
+    "ringkasan": "1-2 kalimat singkat",
+    "ketidaksesuaian": ["list aspek yang tidak sesuai, kosong jika semua sesuai"]
+  }
 }
 
 PENTING:
-- Output HANYA JSON, tanpa markdown code block, tanpa teks tambahan di luar JSON.
-- Analisis SEMUA aspek berikut secara menyeluruh:
-  1. Kesesuaian identitas perusahaan
-  2. Kesesuaian penandatangan dokumen rencana distribusi dengan penanggung jawab dalam Pertek (khusus API-U)
-  3. Kesesuaian detail spesifikasi barang, HS Code, negara asal, dan informasi teknis lainnya
-  4. Kesesuaian data pada PI terakhir dengan Pertek dan dokumen pendukung
-  5. Analisis VPTI/LS - tentukan apakah wajib atau pengecualian berdasarkan:
-     - Impor ke KPBPB, KEK, atau TPB
-     - Impor dengan fasilitas KITE Pembebasan
-     - API-P industri otomotif, elektronika, galangan kapal, mould & dies, pesawat terbang, atau alat berat
-     - API-P berstatus AEO atau MITA Kepabeanan
-     - API-P pengguna SKVI USDFS
-     - Perusahaan penerima fasilitas BMDTP
-     - Kontraktor KKS Migas, Kontrak Karya, atau proyek ketenagalistrikan
-     - Barang dengan HS 7213.91.30, 7213.91.90, 7213.99.90 (C > 0,6%), dan 7225.50.90 (Tin Mill Black Plate)
-- Jika informasi tidak tersedia di dokumen, nyatakan "Tidak tersedia dalam dokumen"
-- Berikan analisis yang detail dan spesifik berdasarkan data yang ada di dokumen"""
+- Analisis SEMUA aspek secara menyeluruh.
+- Untuk VPTI/LS, periksa pengecualian:
+  * Impor ke KPBPB, KEK, atau TPB
+  * Fasilitas KITE Pembebasan
+  * API-P industri otomotif, elektronika, galangan kapal, mould & dies, pesawat terbang, atau alat berat
+  * API-P berstatus AEO atau MITA Kepabeanan
+  * API-P pengguna SKVI USDFS
+  * Penerima fasilitas BMDTP
+  * Kontraktor KKS Migas, Kontrak Karya, atau proyek ketenagalistrikan
+  * Barang HS 7213.91.30, 7213.91.90, 7213.99.90 (C > 0,6%), 7225.50.90 (TMBP)
+- Jika data tidak tersedia di dokumen, tulis "Tidak tersedia"
+- JANGAN buat narasi panjang, cukup poin-poin singkat"""
 
 
 def build_user_prompt(pdf_texts):
     """Build the user prompt with all PDF texts."""
-    prompt = "Berikut adalah dokumen-dokumen yang perlu dianalisis dan dicocokkan:\n\n"
+    prompt = "Berikut dokumen-dokumen yang perlu dianalisis:\n\n"
     for item in pdf_texts:
         prompt += f"{'='*60}\n"
         prompt += f"DOKUMEN: {item['name']}\n"
         prompt += f"{'='*60}\n"
         prompt += item["text"] + "\n\n"
 
-    prompt += """
-Cocokkan seluruh informasi dalam dokumen-dokumen di atas. Identifikasi mana yang merupakan dokumen PI dan mana yang Pertek berdasarkan isinya, lalu lakukan analisis pencocokan lengkap.
-
-Berikan output dalam format JSON sesuai struktur yang diminta."""
+    prompt += "Identifikasi mana PI dan mana Pertek, lalu cocokkan. Output JSON saja."
     return prompt
 
 
@@ -172,14 +203,13 @@ def analyze_documents(api_key, pdf_texts):
         }
     }
 
-    # Retry up to 3 times for server errors (503, 500, etc.)
     max_retries = 3
     for attempt in range(max_retries):
         response = requests.post(url, json=payload, timeout=180)
 
         if response.status_code in (500, 502, 503, 429):
             if attempt < max_retries - 1:
-                wait = (attempt + 1) * 5  # 5s, 10s, 15s
+                wait = (attempt + 1) * 5
                 time.sleep(wait)
                 continue
             else:
@@ -190,15 +220,12 @@ def analyze_documents(api_key, pdf_texts):
 
     data = response.json()
 
-    # Check if response was truncated
     candidate = data["candidates"][0]
     if candidate.get("finishReason") == "MAX_TOKENS":
         raise ValueError("Response terpotong. Dokumen terlalu panjang, coba upload lebih sedikit file.")
 
-    # Extract text from Gemini response
     response_text = candidate["content"]["parts"][0]["text"].strip()
 
-    # Clean up response - remove markdown code blocks if present
     if response_text.startswith("```"):
         lines = response_text.split("\n")
         lines = [l for l in lines if not l.strip().startswith("```")]
@@ -211,107 +238,103 @@ def analyze_documents(api_key, pdf_texts):
 # RENDER RESULTS
 # ============================================================
 def render_results(result):
-    """Render the analysis results with formatting."""
+    """Render the analysis results."""
 
-    # Opening summary
-    st.markdown("### Hasil Pencocokan")
-    st.markdown(result.get("ringkasan_pembuka", ""))
+    info = result.get("info", {})
+    st.markdown(f"**PI:** {info.get('nomor_pi', '-')} ({info.get('tanggal_pi', '-')}) | "
+                f"**Pertek:** {info.get('nomor_pertek', '-')} ({info.get('tanggal_pertek', '-')}) | "
+                f"**Jenis:** {info.get('jenis_api', '-')}")
     st.divider()
 
     # 1. Identitas Perusahaan
     id_data = result.get("identitas_perusahaan", {})
-    st.markdown("#### 1. Kesesuaian Identitas Perusahaan")
-    status = id_data.get("status", "N/A")
-    if status == "Sesuai":
-        st.success(f"**{status}**")
-    else:
-        st.error(f"**{status}**")
-
-    if id_data.get("nama"):
-        st.markdown(f"- **Nama:** {id_data['nama']}")
-    if id_data.get("nib"):
-        st.markdown(f"- **NIB:** {id_data['nib']}")
-    if id_data.get("alamat"):
-        st.markdown(f"- **Alamat:** {id_data['alamat']}")
-    if id_data.get("detail"):
-        st.markdown(id_data["detail"])
+    st.markdown("#### 1. Identitas Perusahaan")
+    id_items = id_data.get("items", [])
+    if id_items:
+        html = '<table class="detail-table">'
+        html += '<tr><th>Aspek</th><th>PI</th><th>Pertek</th><th>Status</th></tr>'
+        for item in id_items:
+            status = item.get("status", "N/A")
+            icon = "&#9989;" if status == "Sesuai" else "&#10060;"
+            html += f'<tr><td>{item.get("aspek", "")}</td><td>{item.get("pi", "")}</td><td>{item.get("pertek", "")}</td><td>{icon} {status}</td></tr>'
+        html += '</table>'
+        st.markdown(html, unsafe_allow_html=True)
     st.markdown("")
 
-    # 2. Penandatangan
-    pen_data = result.get("penandatangan", {})
-    st.markdown("#### 2. Kesesuaian Penandatangan Rencana Distribusi")
-    status = pen_data.get("status", "N/A")
-    if "Tidak berlaku" in status:
-        st.info(status)
-    elif status == "Sesuai":
-        st.success(f"**{status}**")
-    else:
-        st.error(f"**{status}**")
-    if pen_data.get("detail"):
-        st.markdown(pen_data["detail"])
-    st.markdown("")
-
-    # 3. Spesifikasi Barang
+    # 2. Spesifikasi Barang (tabel per item)
     spec_data = result.get("spesifikasi_barang", {})
-    st.markdown("#### 3. Kesesuaian Spesifikasi Barang, HS Code, dan Informasi Teknis")
-    status = spec_data.get("status", "N/A")
-    if status == "Sesuai":
-        st.success(f"**{status}**")
-    else:
-        st.error(f"**{status}**")
-    if spec_data.get("detail"):
-        st.markdown(spec_data["detail"])
+    st.markdown("#### 2. Spesifikasi Barang")
+    spec_items = spec_data.get("items", [])
+    if spec_items:
+        html = '<table class="detail-table">'
+        html += '<tr><th>HS Code</th><th>Uraian</th><th>Spec PI</th><th>Spec Pertek</th><th>Jumlah PI</th><th>Jumlah Pertek</th><th>N. Asal PI</th><th>N. Asal Pertek</th><th>Status</th></tr>'
+        for item in spec_items:
+            status = item.get("status", "N/A")
+            icon = "&#9989;" if status == "Sesuai" else "&#10060;"
+            html += (f'<tr>'
+                     f'<td>{item.get("hs_code", "")}</td>'
+                     f'<td>{item.get("uraian", "")}</td>'
+                     f'<td>{item.get("spesifikasi_pi", "")}</td>'
+                     f'<td>{item.get("spesifikasi_pertek", "")}</td>'
+                     f'<td>{item.get("jumlah_pi", "")}</td>'
+                     f'<td>{item.get("jumlah_pertek", "")}</td>'
+                     f'<td>{item.get("negara_asal_pi", "")}</td>'
+                     f'<td>{item.get("negara_asal_pertek", "")}</td>'
+                     f'<td>{icon} {status}</td>'
+                     f'</tr>')
+        html += '</table>'
+        st.markdown(html, unsafe_allow_html=True)
     st.markdown("")
 
-    # 4. Data PI vs Pertek
+    # 3. Data PI vs Pertek (tabel)
     pi_data = result.get("data_pi_vs_pertek", {})
-    st.markdown("#### 4. Kesesuaian Data PI dengan Pertek dan Dokumen Pendukung")
-    status = pi_data.get("status", "N/A")
-    if status == "Sesuai":
-        st.success(f"**{status}**")
-    else:
-        st.error(f"**{status}**")
-    if pi_data.get("detail"):
-        st.markdown(pi_data["detail"])
+    st.markdown("#### 3. Data PI vs Pertek")
+    pi_items = pi_data.get("items", [])
+    if pi_items:
+        html = '<table class="detail-table">'
+        html += '<tr><th>Aspek</th><th>PI</th><th>Pertek</th><th>Status</th></tr>'
+        for item in pi_items:
+            status = item.get("status", "N/A")
+            icon = "&#9989;" if status == "Sesuai" else "&#10060;"
+            html += f'<tr><td>{item.get("aspek", "")}</td><td>{item.get("pi", "")}</td><td>{item.get("pertek", "")}</td><td>{icon} {status}</td></tr>'
+        html += '</table>'
+        st.markdown(html, unsafe_allow_html=True)
     st.markdown("")
 
-    # 5. VPTI/LS
+    # 4. VPTI/LS
     vpti_data = result.get("vpti_ls", {})
-    st.markdown(f"#### 5. Analisis VPTI/LS ({vpti_data.get('jenis_api', '')})")
+    st.markdown(f"#### 4. Analisis VPTI/LS")
+    vpti_items = []
+    if vpti_data.get("jenis_api"):
+        vpti_items.append(f"- **Jenis API:** {vpti_data['jenis_api']}")
     if vpti_data.get("kbli"):
-        st.markdown(f"- **KBLI:** {vpti_data['kbli']} - {vpti_data.get('kbli_deskripsi', '')}")
-    if vpti_data.get("alasan"):
-        st.markdown(vpti_data["alasan"])
+        vpti_items.append(f"- **KBLI:** {vpti_data['kbli']} - {vpti_data.get('kbli_deskripsi', '')}")
+    if vpti_data.get("profil_usaha"):
+        vpti_items.append(f"- **Profil:** {vpti_data['profil_usaha']}")
     if vpti_data.get("pengecualian"):
         for p in vpti_data["pengecualian"]:
-            st.markdown(f"  - {p}")
-    if vpti_data.get("pernyataan_pi"):
-        st.markdown(f"*Pernyataan di PI: \"{vpti_data['pernyataan_pi']}\"*")
+            vpti_items.append(f"- **Pengecualian:** {p}")
+    if vpti_data.get("alasan_singkat"):
+        vpti_items.append(f"- **Alasan:** {vpti_data['alasan_singkat']}")
+    for line in vpti_items:
+        st.markdown(line)
 
     wajib = vpti_data.get("wajib", True)
     if wajib:
-        st.warning("**Kesimpulan VPTI/LS: Wajib dilakukan Verifikasi atau Penelusuran Teknis (VPTI/LS)**")
+        st.warning("**Wajib VPTI/LS**")
     else:
-        pengecualian_str = ", ".join(vpti_data.get("pengecualian", []))
-        st.success(f"**Kesimpulan VPTI/LS: Tidak wajib VPTI/LS** (pengecualian: {pengecualian_str})")
+        st.success("**Tidak wajib VPTI/LS**")
 
     # ============================================================
-    # KESIMPULAN AKHIR TABLE
+    # KESIMPULAN AKHIR
     # ============================================================
     st.divider()
     st.markdown("### Kesimpulan Akhir")
 
     rows = []
+    rows.append(("Identitas perusahaan", id_data.get("status", "N/A")))
 
-    # Identitas
-    rows.append(("Identitas perusahaan", id_data.get("status", "N/A"), ""))
-
-    # Penandatangan
-    pen_status = pen_data.get("status", "N/A")
-    pen_detail = pen_data.get("detail", "")
-    rows.append(("Penandatangan Rencana Distribusi", pen_status, pen_detail))
-
-    # Spec items
+    ringkasan = spec_data.get("ringkasan", {})
     for key, label in [
         ("hs_code", "HS Code"),
         ("uraian_barang", "Uraian barang"),
@@ -321,57 +344,47 @@ def render_results(result):
         ("negara_muat", "Negara muat"),
         ("pelabuhan_tujuan", "Pelabuhan tujuan"),
     ]:
-        rows.append((label, spec_data.get(key, "N/A"), ""))
+        rows.append((label, ringkasan.get(key, "N/A")))
 
-    # PI vs Pertek
-    rows.append(("Data PI vs Pertek dan dokumen pendukung", pi_data.get("status", "N/A"), ""))
-
-    # Profil usaha
-    rows.append(("Analisis profil usaha", vpti_data.get("profil_usaha", "N/A"), ""))
-
-    # VPTI
-    if wajib:
-        vpti_status = "Wajib dilakukan VPTI/LS"
-    else:
-        vpti_status = "Tidak wajib VPTI/LS"
-    rows.append(("Kewajiban VPTI/LS", vpti_status, ""))
+    rows.append(("Data PI vs Pertek", pi_data.get("status", "N/A")))
+    rows.append(("Profil usaha", vpti_data.get("profil_usaha", "N/A")))
+    rows.append(("Kewajiban VPTI/LS", "Wajib VPTI/LS" if wajib else "Tidak wajib VPTI/LS"))
 
     # Build HTML table
     html = '<table class="summary-table">'
     html += '<tr><th style="width:35%">Aspek Pemeriksaan</th><th>Hasil</th></tr>'
 
-    for label, status, detail in rows:
-        if "Tidak berlaku" in status:
-            display = f"<em>{status}</em>"
-            if detail:
-                display += f"<br><small>{detail}</small>"
-        elif "Sesuai" in status and "Tidak" not in status:
-            display = f'&#9989; <strong>{status}</strong>'
-            if detail:
-                display += f"<br><small>{detail}</small>"
-        elif "Tidak Sesuai" in status:
-            display = f'&#10060; <strong>{status}</strong>'
-            if detail:
-                display += f"<br><small>{detail}</small>"
-        elif "Wajib" in status and "Tidak" not in status:
-            display = f'&#9989; <strong>{status}</strong>'
-        elif "Tidak wajib" in status:
-            display = f'&#9989; <strong>{status}</strong>'
+    for label, status in rows:
+        if "Sesuai" in str(status) and "Tidak" not in str(status):
+            display = f'&#9989; {status}'
+        elif "Tidak Sesuai" in str(status):
+            display = f'&#10060; {status}'
+        elif "Tidak wajib" in str(status):
+            display = f'&#9989; {status}'
+        elif "Wajib" in str(status):
+            display = f'&#9989; {status}'
         else:
             display = status
-            if detail:
-                display += f"<br><small>{detail}</small>"
 
         html += f'<tr><td>{label}</td><td>{display}</td></tr>'
 
     html += '</table>'
     st.markdown(html, unsafe_allow_html=True)
 
-    # Final conclusion
-    st.markdown("### Kesimpulan")
-    kesimpulan = result.get("kesimpulan_akhir", "")
-    if kesimpulan:
-        st.markdown(kesimpulan)
+    # Kesimpulan final
+    kesimpulan = result.get("kesimpulan", {})
+    dapat = kesimpulan.get("dapat_ditindaklanjuti", True)
+    ketidaksesuaian = kesimpulan.get("ketidaksesuaian", [])
+
+    if dapat:
+        st.success(f"**Dapat ditindaklanjuti.** {kesimpulan.get('ringkasan', '')}")
+    else:
+        msg = f"**Tidak dapat ditindaklanjuti.**\n\n{kesimpulan.get('ringkasan', '')}"
+        if ketidaksesuaian:
+            msg += "\n\n**Ketidaksesuaian:**\n"
+            for k in ketidaksesuaian:
+                msg += f"\n- {k}"
+        st.error(msg)
 
     return rows
 
@@ -382,79 +395,62 @@ def build_download_text(result, rows):
     lines.append("LAPORAN PENCOCOKAN PI DAN PERTEK")
     lines.append(f"Tanggal: {datetime.now().strftime('%d %B %Y %H:%M')}")
     lines.append("=" * 60)
-    lines.append("")
-    lines.append(result.get("ringkasan_pembuka", ""))
+
+    info = result.get("info", {})
+    lines.append(f"PI: {info.get('nomor_pi', '-')} ({info.get('tanggal_pi', '-')})")
+    lines.append(f"Pertek: {info.get('nomor_pertek', '-')} ({info.get('tanggal_pertek', '-')})")
+    lines.append(f"Jenis: {info.get('jenis_api', '-')}")
     lines.append("")
 
-    # 1
+    # 1. Identitas
+    lines.append("1. IDENTITAS PERUSAHAAN")
     id_data = result.get("identitas_perusahaan", {})
-    lines.append("1. Kesesuaian identitas perusahaan")
-    lines.append(f"   Status: {id_data.get('status', 'N/A')}")
-    if id_data.get("nama"):
-        lines.append(f"   Nama: {id_data['nama']}")
-    if id_data.get("nib"):
-        lines.append(f"   NIB: {id_data['nib']}")
-    if id_data.get("alamat"):
-        lines.append(f"   Alamat: {id_data['alamat']}")
-    if id_data.get("detail"):
-        lines.append(f"   {id_data['detail']}")
+    for item in id_data.get("items", []):
+        lines.append(f"   {item.get('aspek', '')}: PI={item.get('pi', '')} | Pertek={item.get('pertek', '')} -> {item.get('status', '')}")
     lines.append("")
 
-    # 2
-    pen_data = result.get("penandatangan", {})
-    lines.append("2. Kesesuaian penandatangan dokumen rencana distribusi")
-    lines.append(f"   Status: {pen_data.get('status', 'N/A')}")
-    if pen_data.get("detail"):
-        lines.append(f"   {pen_data['detail']}")
-    lines.append("")
-
-    # 3
+    # 2. Spesifikasi
+    lines.append("2. SPESIFIKASI BARANG")
     spec_data = result.get("spesifikasi_barang", {})
-    lines.append("3. Kesesuaian spesifikasi barang, HS Code, dan informasi teknis")
-    lines.append(f"   Status keseluruhan: {spec_data.get('status', 'N/A')}")
-    for key, label in [
-        ("hs_code", "HS Code"), ("spesifikasi_teknis", "Spesifikasi teknis"),
-        ("jumlah_satuan", "Jumlah & satuan"), ("negara_asal", "Negara asal"),
-        ("negara_muat", "Negara muat"), ("pelabuhan_tujuan", "Pelabuhan tujuan"),
-    ]:
-        lines.append(f"   {label}: {spec_data.get(key, 'N/A')}")
-    if spec_data.get("detail"):
-        lines.append(f"   {spec_data['detail']}")
+    for item in spec_data.get("items", []):
+        lines.append(f"   HS {item.get('hs_code', '')}: {item.get('uraian', '')} -> {item.get('status', '')}")
+        if item.get("catatan"):
+            lines.append(f"     Catatan: {item['catatan']}")
     lines.append("")
 
-    # 4
+    # 3. PI vs Pertek
+    lines.append("3. DATA PI VS PERTEK")
     pi_data = result.get("data_pi_vs_pertek", {})
-    lines.append("4. Kesesuaian data PI dengan Pertek")
-    lines.append(f"   Status: {pi_data.get('status', 'N/A')}")
-    if pi_data.get("detail"):
-        lines.append(f"   {pi_data['detail']}")
+    for item in pi_data.get("items", []):
+        lines.append(f"   {item.get('aspek', '')}: PI={item.get('pi', '')} | Pertek={item.get('pertek', '')} -> {item.get('status', '')}")
     lines.append("")
 
-    # 5
+    # 4. VPTI/LS
     vpti_data = result.get("vpti_ls", {})
-    lines.append(f"5. Analisis VPTI/LS ({vpti_data.get('jenis_api', '')})")
-    if vpti_data.get("kbli"):
-        lines.append(f"   KBLI: {vpti_data['kbli']} - {vpti_data.get('kbli_deskripsi', '')}")
-    if vpti_data.get("alasan"):
-        lines.append(f"   {vpti_data['alasan']}")
-    wajib = vpti_data.get("wajib", True)
-    lines.append(f"   Kesimpulan: {'Wajib VPTI/LS' if wajib else 'Tidak wajib VPTI/LS'}")
+    lines.append("4. ANALISIS VPTI/LS")
+    lines.append(f"   Jenis API: {vpti_data.get('jenis_api', '')}")
+    lines.append(f"   KBLI: {vpti_data.get('kbli', '')} - {vpti_data.get('kbli_deskripsi', '')}")
+    lines.append(f"   Wajib: {'Ya' if vpti_data.get('wajib', True) else 'Tidak'}")
+    lines.append(f"   Alasan: {vpti_data.get('alasan_singkat', '')}")
     lines.append("")
 
-    # Summary table
+    # Kesimpulan
     lines.append("=" * 60)
     lines.append("KESIMPULAN AKHIR")
     lines.append("=" * 60)
-    for label, status, detail in rows:
-        line = f"  {label}: {status}"
-        if detail:
-            line += f" - {detail}"
-        lines.append(line)
+    for label, status in rows:
+        lines.append(f"  {label}: {status}")
     lines.append("")
 
-    # Final
-    lines.append("-" * 60)
-    lines.append(result.get("kesimpulan_akhir", ""))
+    kesimpulan = result.get("kesimpulan", {})
+    dapat = kesimpulan.get("dapat_ditindaklanjuti", True)
+    lines.append(f"{'DAPAT' if dapat else 'TIDAK DAPAT'} DITINDAKLANJUTI")
+    lines.append(kesimpulan.get("ringkasan", ""))
+    ketidaksesuaian = kesimpulan.get("ketidaksesuaian", [])
+    if ketidaksesuaian:
+        lines.append("Ketidaksesuaian:")
+        for k in ketidaksesuaian:
+            lines.append(f"  - {k}")
 
     return "\n".join(lines)
 
@@ -463,26 +459,29 @@ def build_download_text(result, rows):
 # MAIN UI
 # ============================================================
 st.title("Pertek Checker")
-st.caption("Upload PDF PI dan Pertek → otomatis dianalisis dan dicocokkan")
+st.caption("Upload PDF PI dan Pertek, otomatis dianalisis dan dicocokkan")
 
-# API Key: otomatis dari secrets, client tidak perlu tahu
+# API Key
 api_key = load_api_key()
 
 # Main area
 st.markdown("### Upload Dokumen PDF")
-st.info("Upload semua file PDF terkait (PI dan Pertek). Bisa lebih dari 1 file. Sistem akan otomatis mengenali mana PI dan mana Pertek.")
+st.info("Upload semua file PDF terkait (PI dan Pertek). Bisa lebih dari 1 file.")
+
+# File uploader with clear functionality
+if "clear_files" not in st.session_state:
+    st.session_state["clear_files"] = 0
 
 uploaded_files = st.file_uploader(
     "Pilih file PDF",
     type=["pdf"],
     accept_multiple_files=True,
-    key="pdf_uploader",
+    key=f"pdf_uploader_{st.session_state['clear_files']}",
 )
 
 if uploaded_files:
     st.success(f"{len(uploaded_files)} file diupload")
 
-    # Show extracted text in expanders
     pdf_texts = []
     for f in uploaded_files:
         txt = extract_pdf_text(f)
@@ -494,11 +493,23 @@ if uploaded_files:
             st.text(item["text"][:5000] + ("..." if len(item["text"]) > 5000 else ""))
             st.divider()
 
-    # Analyze button
+    # Buttons
     st.divider()
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        analyze_btn = st.button("Analisis & Cocokkan", type="primary", use_container_width=True, disabled=not api_key)
+    with col2:
+        clear_btn = st.button("Analisis Baru", use_container_width=True)
+
+    if clear_btn:
+        st.session_state["clear_files"] += 1
+        st.session_state.pop("analysis_result", None)
+        st.rerun()
+
     if not api_key:
         st.error("API key belum dikonfigurasi. Hubungi administrator.")
-    if st.button("Analisis & Cocokkan", type="primary", use_container_width=True, disabled=not api_key):
+
+    if analyze_btn and api_key:
         with st.spinner("Menganalisis dokumen... (biasanya 15-30 detik)"):
             try:
                 result = analyze_documents(api_key, pdf_texts)
@@ -506,21 +517,21 @@ if uploaded_files:
             except json.JSONDecodeError:
                 st.error("Error parsing hasil analisis. Coba klik Analisis lagi.")
             except requests.exceptions.HTTPError as e:
-                status = e.response.status_code if e.response else 0
-                if status == 401 or status == 403:
+                status_code = e.response.status_code if e.response else 0
+                if status_code == 401 or status_code == 403:
                     st.error("API Key tidak valid. Hubungi administrator.")
-                elif status == 429:
+                elif status_code == 429:
                     st.error("Rate limit tercapai. Tunggu 1 menit lalu coba lagi.")
-                elif status >= 500:
+                elif status_code >= 500:
                     st.error("Server sedang sibuk. Tunggu beberapa detik lalu coba lagi.")
                 else:
-                    st.error(f"Terjadi error (kode {status}). Coba lagi.")
+                    st.error(f"Terjadi error (kode {status_code}). Coba lagi.")
             except ValueError as e:
                 st.error(str(e))
             except Exception:
                 st.error("Terjadi error. Coba lagi dalam beberapa detik.")
 
-    # Show results if available
+    # Show results
     if "analysis_result" in st.session_state and st.session_state["analysis_result"]:
         result = st.session_state["analysis_result"]
         st.divider()
@@ -544,7 +555,6 @@ elif not uploaded_files:
     st.markdown("2. Klik **Analisis & Cocokkan**")
     st.markdown("3. Hasil langsung muncul + bisa download laporan")
 
-
 # Footer
 st.markdown("---")
-st.caption("Pertek Checker v2.0 | Data diproses secara aman dan tidak disimpan.")
+st.caption("Pertek Checker v3.0 | Data diproses secara aman dan tidak disimpan.")
