@@ -203,18 +203,12 @@ def build_user_prompt(pdf_texts):
 # ============================================================
 # CALL GEMINI API
 # ============================================================
-def analyze_documents(api_key, pdf_texts):
-    """Send documents to Gemini API for analysis with retry."""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+def call_gemini(api_key, model, prompt_text):
+    """Call Gemini API with a specific model."""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
 
     payload = {
-        "contents": [
-            {
-                "parts": [
-                    {"text": SYSTEM_PROMPT + "\n\n" + build_user_prompt(pdf_texts)}
-                ]
-            }
-        ],
+        "contents": [{"parts": [{"text": prompt_text}]}],
         "generationConfig": {
             "temperature": 0.1,
             "maxOutputTokens": 65536,
@@ -222,35 +216,45 @@ def analyze_documents(api_key, pdf_texts):
         }
     }
 
-    max_retries = 3
-    for attempt in range(max_retries):
-        response = requests.post(url, json=payload, timeout=180)
+    response = requests.post(url, json=payload, timeout=240)
+    return response
 
-        if response.status_code in (500, 502, 503, 429):
-            if attempt < max_retries - 1:
-                wait = (attempt + 1) * 5
-                time.sleep(wait)
-                continue
-            else:
-                raise ValueError(f"Server sedang sibuk setelah {max_retries} percobaan. Coba lagi nanti.")
 
-        response.raise_for_status()
-        break
+def analyze_documents(api_key, pdf_texts):
+    """Send documents to Gemini API with retry and fallback model."""
+    prompt_text = SYSTEM_PROMPT + "\n\n" + build_user_prompt(pdf_texts)
+    models = ["gemini-2.5-flash", "gemini-2.0-flash"]
 
-    data = response.json()
+    for model in models:
+        max_retries = 3
+        for attempt in range(max_retries):
+            response = call_gemini(api_key, model, prompt_text)
 
-    candidate = data["candidates"][0]
-    if candidate.get("finishReason") == "MAX_TOKENS":
-        raise ValueError("Response terpotong. Dokumen terlalu panjang, coba upload lebih sedikit file.")
+            if response.status_code in (500, 502, 503, 429):
+                if attempt < max_retries - 1:
+                    wait = (attempt + 1) * 10  # 10s, 20s, 30s
+                    time.sleep(wait)
+                    continue
+                else:
+                    break  # Try next model
 
-    response_text = candidate["content"]["parts"][0]["text"].strip()
+            response.raise_for_status()
 
-    if response_text.startswith("```"):
-        lines = response_text.split("\n")
-        lines = [l for l in lines if not l.strip().startswith("```")]
-        response_text = "\n".join(lines)
+            data = response.json()
+            candidate = data["candidates"][0]
+            if candidate.get("finishReason") == "MAX_TOKENS":
+                raise ValueError("Response terpotong. Dokumen terlalu panjang, coba upload lebih sedikit file.")
 
-    return json.loads(response_text)
+            response_text = candidate["content"]["parts"][0]["text"].strip()
+
+            if response_text.startswith("```"):
+                lines = response_text.split("\n")
+                lines = [l for l in lines if not l.strip().startswith("```")]
+                response_text = "\n".join(lines)
+
+            return json.loads(response_text)
+
+    raise ValueError("Server sedang sibuk. Coba lagi dalam 1-2 menit.")
 
 
 # ============================================================
@@ -579,16 +583,23 @@ if uploaded_files:
         st.divider()
         rows = render_results(result)
 
-        # Download
+        # Download + Analisis Baru at bottom
         st.divider()
         report_text = build_download_text(result, rows)
-        st.download_button(
-            "Download Laporan (.txt)",
-            data=report_text,
-            file_name=f"laporan_pertek_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-            mime="text/plain",
-            use_container_width=True,
-        )
+        col_dl, col_new = st.columns([3, 1])
+        with col_dl:
+            st.download_button(
+                "Download Laporan (.txt)",
+                data=report_text,
+                file_name=f"laporan_pertek_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                mime="text/plain",
+                use_container_width=True,
+            )
+        with col_new:
+            if st.button("Analisis Baru", use_container_width=True, key="clear_bottom"):
+                st.session_state["clear_files"] += 1
+                st.session_state.pop("analysis_result", None)
+                st.rerun()
 
 elif not uploaded_files:
     st.markdown("---")
