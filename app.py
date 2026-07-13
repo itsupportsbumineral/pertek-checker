@@ -5,7 +5,10 @@ import io
 import os
 import time
 import requests
-from datetime import datetime
+import gspread
+import pandas as pd
+from datetime import datetime, timedelta
+from google.oauth2.service_account import Credentials
 
 # ============================================================
 # CONFIG
@@ -134,6 +137,96 @@ def load_api_key():
 
 
 # ============================================================
+# GOOGLE SHEETS
+# ============================================================
+SHEET_HEADERS = [
+    "tanggal_analisis", "nomor_pi", "tanggal_pi", "nomor_pertek",
+    "tanggal_pertek", "jenis_api", "nama_perusahaan", "hs_codes",
+    "negara_muat", "pelabuhan_tujuan", "total_items", "total_sesuai",
+    "total_tidak_sesuai", "status", "catatan",
+]
+
+
+@st.cache_resource(ttl=300)
+def _get_gsheet_client():
+    try:
+        creds_dict = dict(st.secrets["gcp_service_account"])
+        creds = Credentials.from_service_account_info(
+            creds_dict,
+            scopes=[
+                "https://spreadsheets.google.com/feeds",
+                "https://www.googleapis.com/auth/drive",
+            ],
+        )
+        return gspread.authorize(creds)
+    except Exception:
+        return None
+
+
+def _get_sheet():
+    client = _get_gsheet_client()
+    if not client:
+        return None
+    try:
+        url = st.secrets["GSHEET_URL"]
+        sheet = client.open_by_url(url).sheet1
+        # Initialize headers if sheet is empty
+        if not sheet.row_values(1):
+            sheet.append_row(SHEET_HEADERS, value_input_option="RAW")
+        return sheet
+    except Exception:
+        return None
+
+
+def save_to_sheets(result):
+    sheet = _get_sheet()
+    if not sheet:
+        return False
+    try:
+        info = result.get("info", {})
+        id_items = result.get("identitas_perusahaan", {}).get("items", [])
+        nama = next((i.get("pi", "") for i in id_items if i.get("aspek") == "Nama"), "-")
+        spec = result.get("spesifikasi_barang", {})
+        rekap = result.get("rekap_data", {})
+        kesimpulan = result.get("kesimpulan", {})
+
+        row = [
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            info.get("nomor_pi", ""),
+            info.get("tanggal_pi", ""),
+            info.get("nomor_pertek", ""),
+            info.get("tanggal_pertek", ""),
+            info.get("jenis_api", ""),
+            nama,
+            ", ".join(rekap.get("daftar_hs", [])),
+            ", ".join(rekap.get("negara_muat", [])),
+            ", ".join(rekap.get("pelabuhan_tujuan", [])),
+            spec.get("total_items", 0),
+            spec.get("total_sesuai", 0),
+            spec.get("total_tidak_sesuai", 0),
+            kesimpulan.get("status", ""),
+            kesimpulan.get("catatan", ""),
+        ]
+        sheet.append_row(row, value_input_option="USER_ENTERED")
+        return True
+    except Exception:
+        return False
+
+
+def load_from_sheets():
+    sheet = _get_sheet()
+    if not sheet:
+        return None
+    try:
+        data = sheet.get_all_records()
+        if not data:
+            return None
+        return pd.DataFrame(data)
+    except Exception:
+        return None
+
+
+# ============================================================
 # PDF EXTRACTION
 # ============================================================
 def extract_pdf_text(uploaded_file):
@@ -215,7 +308,6 @@ Struktur JSON:
       "uraian_barang": {"status": "Sesuai", "keterangan": ""},
       "spesifikasi_teknis": {"status": "Sesuai", "keterangan": ""},
       "jumlah_satuan": {"status": "Sesuai", "keterangan": "jika Tidak Sesuai: sebutkan HS mana dan angkanya"},
-      "negara_muat": {"status": "Sesuai", "keterangan": ""},
       "pelabuhan_tujuan": {"status": "Sesuai", "keterangan": ""}
     }
   },
@@ -239,6 +331,12 @@ Struktur JSON:
     "profil_usaha": "1 kalimat"
   },
 
+  "rekap_data": {
+    "daftar_hs": ["list SEMUA HS code yang ada di dokumen, misal: 7213.91.30, 7225.50.90"],
+    "negara_muat": ["list semua negara muat, misal: China, India"],
+    "pelabuhan_tujuan": ["list semua pelabuhan tujuan, misal: Tanjung Priok, Tanjung Perak"]
+  },
+
   "kesimpulan": {
     "status": "DAPAT DIPROSES" atau "TIDAK DAPAT DIPROSES",
     "catatan": "1-2 kalimat singkat rekomendasi atau alasan jika tidak dapat diproses.",
@@ -257,7 +355,9 @@ PENTING:
   * Kontraktor KKS Migas, Kontrak Karya, atau proyek ketenagalistrikan
   * Barang HS 7213.91.30, 7213.91.90, 7213.99.90 (C > 0,6%), 7225.50.90 (TMBP)
 - Jika data tidak tersedia, tulis "Tidak tersedia"
-- INGAT: beda format/urutan penulisan BUKAN berarti Tidak Sesuai. Fokus pada isi/makna."""
+- INGAT: beda format/urutan penulisan BUKAN berarti Tidak Sesuai. Fokus pada isi/makna.
+- JANGAN cocokkan Negara Muat. Kolom Negara Muat hanya ada di PI, TIDAK ada di Pertek. Jadi JANGAN pernah menandai item sebagai "Tidak Sesuai" karena perbedaan negara muat. Yang dicocokkan HANYA Pelabuhan Tujuan.
+- WAJIB isi rekap_data dengan SEMUA HS code, negara muat (dari PI), dan pelabuhan tujuan yang ada di dokumen."""
 
 
 def build_user_prompt(pdf_texts):
@@ -289,7 +389,7 @@ def call_gemini(api_key, model, prompt_text):
 
 def analyze_documents(api_key, pdf_texts):
     prompt_text = SYSTEM_PROMPT + "\n\n" + build_user_prompt(pdf_texts)
-    models = ["gemini-2.5-flash", "gemini-2.0-flash"]
+    models = ["gemini-2.0-flash", "gemini-2.5-flash"]
 
     for model in models:
         for attempt in range(3):
@@ -426,7 +526,6 @@ def render_results(result):
         ("uraian_barang", "Uraian barang"),
         ("spesifikasi_teknis", "Spesifikasi teknis"),
         ("jumlah_satuan", "Jumlah dan satuan"),
-        ("negara_muat", "Negara muat"),
         ("pelabuhan_tujuan", "Pelabuhan tujuan"),
     ]:
         val = ringkasan.get(key, "N/A")
@@ -559,6 +658,102 @@ def build_download_text(result, rows):
 
 
 # ============================================================
+# REKAP TAB HELPERS
+# ============================================================
+def _split_and_count(series):
+    """Split comma-separated values and count occurrences."""
+    items = []
+    for val in series.dropna():
+        items.extend([x.strip() for x in str(val).split(",") if x.strip()])
+    if not items:
+        return pd.DataFrame(columns=["Item", "Jumlah"])
+    counts = pd.Series(items).value_counts().reset_index()
+    counts.columns = ["Item", "Jumlah"]
+    return counts
+
+
+def render_rekap_tab():
+    st.markdown('<div class="section-header">Rekap Data Analisis</div>', unsafe_allow_html=True)
+
+    df = load_from_sheets()
+    if df is None or df.empty:
+        st.info("Belum ada data analisis tersimpan. Data akan muncul setelah analisis pertama.")
+        return
+
+    df["tanggal_analisis"] = pd.to_datetime(df["tanggal_analisis"], errors="coerce")
+
+    # Period filter
+    period = st.selectbox("Periode", ["Minggu Ini", "Bulan Ini", "Tahun Ini", "Semua Data"])
+    now = datetime.now()
+
+    if period == "Minggu Ini":
+        start = now - timedelta(days=now.weekday())
+        mask = df["tanggal_analisis"] >= start.strftime("%Y-%m-%d")
+    elif period == "Bulan Ini":
+        mask = (df["tanggal_analisis"].dt.month == now.month) & (df["tanggal_analisis"].dt.year == now.year)
+    elif period == "Tahun Ini":
+        mask = df["tanggal_analisis"].dt.year == now.year
+    else:
+        mask = pd.Series(True, index=df.index)
+
+    dff = df[mask].copy()
+
+    if dff.empty:
+        st.warning("Tidak ada data untuk periode ini.")
+        return
+
+    # Summary metrics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Dokumen", len(dff))
+    with col2:
+        dapat = dff["status"].astype(str).str.contains("DAPAT", case=False, na=False) & ~dff["status"].astype(str).str.contains("TIDAK", case=False, na=False)
+        st.metric("Dapat Diproses", int(dapat.sum()))
+    with col3:
+        tidak = dff["status"].astype(str).str.contains("TIDAK", case=False, na=False)
+        st.metric("Tidak Dapat Diproses", int(tidak.sum()))
+
+    # HS Codes
+    st.markdown('<div class="section-header">HS Code</div>', unsafe_allow_html=True)
+    hs_df = _split_and_count(dff["hs_codes"])
+    if not hs_df.empty:
+        st.dataframe(hs_df, use_container_width=True, hide_index=True)
+    else:
+        st.caption("Tidak ada data HS Code.")
+
+    # Negara Muat
+    st.markdown('<div class="section-header">Negara Muat</div>', unsafe_allow_html=True)
+    neg_df = _split_and_count(dff["negara_muat"])
+    if not neg_df.empty:
+        st.dataframe(neg_df, use_container_width=True, hide_index=True)
+    else:
+        st.caption("Tidak ada data negara muat.")
+
+    # Pelabuhan Tujuan
+    st.markdown('<div class="section-header">Pelabuhan Tujuan</div>', unsafe_allow_html=True)
+    pel_df = _split_and_count(dff["pelabuhan_tujuan"])
+    if not pel_df.empty:
+        st.dataframe(pel_df, use_container_width=True, hide_index=True)
+    else:
+        st.caption("Tidak ada data pelabuhan.")
+
+    # Jenis API breakdown
+    st.markdown('<div class="section-header">Jenis API</div>', unsafe_allow_html=True)
+    api_counts = dff["jenis_api"].value_counts().reset_index()
+    api_counts.columns = ["Jenis API", "Jumlah"]
+    if not api_counts.empty:
+        st.dataframe(api_counts, use_container_width=True, hide_index=True)
+
+    # Detail table
+    st.markdown('<div class="section-header">Detail Analisis</div>', unsafe_allow_html=True)
+    detail_cols = ["tanggal_analisis", "nomor_pi", "nomor_pertek", "nama_perusahaan", "jenis_api", "hs_codes", "negara_muat", "pelabuhan_tujuan", "status"]
+    available_cols = [c for c in detail_cols if c in dff.columns]
+    detail = dff[available_cols].copy()
+    detail["tanggal_analisis"] = detail["tanggal_analisis"].dt.strftime("%d/%m/%Y %H:%M")
+    st.dataframe(detail, use_container_width=True, hide_index=True)
+
+
+# ============================================================
 # MAIN UI
 # ============================================================
 if not check_password():
@@ -570,114 +765,124 @@ st.markdown("""<div class="header-card">
     <p>Upload PDF PI dan Pertek, otomatis dianalisis dan dicocokkan</p>
 </div>""", unsafe_allow_html=True)
 
-api_key = load_api_key()
+tab_analisis, tab_rekap = st.tabs(["Analisis", "Rekap Data"])
 
-# File uploader
-if "clear_files" not in st.session_state:
-    st.session_state["clear_files"] = 0
+# ──────────────────────────────────────────────
+# TAB 1: ANALISIS
+# ──────────────────────────────────────────────
+with tab_analisis:
+    api_key = load_api_key()
 
-uploaded_files = st.file_uploader(
-    "Upload file PDF (PI dan Pertek, bisa lebih dari 1)",
-    type=["pdf"],
-    accept_multiple_files=True,
-    key=f"pdf_uploader_{st.session_state['clear_files']}",
-)
+    if "clear_files" not in st.session_state:
+        st.session_state["clear_files"] = 0
 
-if uploaded_files:
-    # Extract text from all files
-    pdf_texts = []
-    total_pages_all = 0
-    for f in uploaded_files:
-        txt, pages = extract_pdf_text(f)
-        total_pages_all += pages
-        pdf_texts.append({"name": f.name, "text": txt, "pages": pages})
+    uploaded_files = st.file_uploader(
+        "Upload file PDF (PI dan Pertek, bisa lebih dari 1)",
+        type=["pdf"],
+        accept_multiple_files=True,
+        key=f"pdf_uploader_{st.session_state['clear_files']}",
+    )
 
-    # File summary
-    file_names = ", ".join([f"{p['name']} ({p['pages']}hal)" for p in pdf_texts])
-    st.markdown(f'<div class="file-count">&#128196; {len(uploaded_files)} file diupload ({total_pages_all} halaman total): {file_names}</div>', unsafe_allow_html=True)
+    if uploaded_files:
+        pdf_texts = []
+        total_pages_all = 0
+        for f in uploaded_files:
+            txt, pages = extract_pdf_text(f)
+            total_pages_all += pages
+            pdf_texts.append({"name": f.name, "text": txt, "pages": pages})
 
-    with st.expander("Lihat teks yang diekstrak dari PDF", expanded=False):
-        for item in pdf_texts:
-            st.markdown(f"**{item['name']}** ({item['pages']} halaman)")
-            st.text(item["text"][:8000] + ("..." if len(item["text"]) > 8000 else ""))
-            st.divider()
+        file_names = ", ".join([f"{p['name']} ({p['pages']}hal)" for p in pdf_texts])
+        st.markdown(f'<div class="file-count">&#128196; {len(uploaded_files)} file diupload ({total_pages_all} halaman total): {file_names}</div>', unsafe_allow_html=True)
 
-    # Buttons
-    st.markdown("")
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        analyze_btn = st.button("Analisis & Cocokkan", type="primary", use_container_width=True, disabled=not api_key)
-    with col2:
-        clear_btn = st.button("Analisis Baru", use_container_width=True)
+        with st.expander("Lihat teks yang diekstrak dari PDF", expanded=False):
+            for item in pdf_texts:
+                st.markdown(f"**{item['name']}** ({item['pages']} halaman)")
+                st.text(item["text"][:8000] + ("..." if len(item["text"]) > 8000 else ""))
+                st.divider()
 
-    if clear_btn:
-        st.session_state["clear_files"] += 1
-        st.session_state.pop("analysis_result", None)
-        st.rerun()
+        st.markdown("")
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            analyze_btn = st.button("Analisis & Cocokkan", type="primary", use_container_width=True, disabled=not api_key)
+        with col2:
+            clear_btn = st.button("Analisis Baru", use_container_width=True)
 
-    if not api_key:
-        st.error("API key belum dikonfigurasi. Hubungi administrator.")
+        if clear_btn:
+            st.session_state["clear_files"] += 1
+            st.session_state.pop("analysis_result", None)
+            st.rerun()
 
-    if analyze_btn and api_key:
-        with st.spinner("Menganalisis dokumen... (biasanya 15-60 detik)"):
-            try:
-                result = analyze_documents(api_key, pdf_texts)
-                st.session_state["analysis_result"] = result
-            except json.JSONDecodeError:
-                st.error("Error parsing hasil analisis. Coba klik Analisis lagi.")
-            except requests.exceptions.HTTPError as e:
-                sc = e.response.status_code if e.response else 0
-                if sc in (401, 403):
-                    st.error("API Key tidak valid. Hubungi administrator.")
-                elif sc == 429:
-                    st.error("Rate limit tercapai. Tunggu 1 menit lalu coba lagi.")
-                elif sc >= 500:
-                    st.error("Server sedang sibuk. Tunggu beberapa detik lalu coba lagi.")
-                else:
-                    st.error(f"Terjadi error (kode {sc}). Coba lagi.")
-            except ValueError as e:
-                st.error(str(e))
-            except Exception:
-                st.error("Terjadi error. Coba lagi dalam beberapa detik.")
+        if not api_key:
+            st.error("API key belum dikonfigurasi. Hubungi administrator.")
 
-    # Show results
-    if "analysis_result" in st.session_state and st.session_state["analysis_result"]:
-        result = st.session_state["analysis_result"]
-        st.markdown("---")
-        st.markdown(f'<p class="page-info">Dianalisis pada {datetime.now().strftime("%d/%m/%Y %H:%M")}</p>', unsafe_allow_html=True)
-        rows = render_results(result)
+        if analyze_btn and api_key:
+            with st.spinner("Menganalisis dokumen..."):
+                try:
+                    result = analyze_documents(api_key, pdf_texts)
+                    st.session_state["analysis_result"] = result
+                    if save_to_sheets(result):
+                        st.toast("Data tersimpan ke rekap", icon="✅")
+                    else:
+                        st.toast("Gagal simpan ke rekap (cek konfigurasi Google Sheets)", icon="⚠️")
+                except json.JSONDecodeError:
+                    st.error("Error parsing hasil analisis. Coba klik Analisis lagi.")
+                except requests.exceptions.HTTPError as e:
+                    sc = e.response.status_code if e.response else 0
+                    if sc in (401, 403):
+                        st.error("API Key tidak valid. Hubungi administrator.")
+                    elif sc == 429:
+                        st.error("Rate limit tercapai. Tunggu 1 menit lalu coba lagi.")
+                    elif sc >= 500:
+                        st.error("Server sedang sibuk. Tunggu beberapa detik lalu coba lagi.")
+                    else:
+                        st.error(f"Terjadi error (kode {sc}). Coba lagi.")
+                except ValueError as e:
+                    st.error(str(e))
+                except Exception:
+                    st.error("Terjadi error. Coba lagi dalam beberapa detik.")
 
-        # Download + Analisis Baru
-        st.markdown("---")
-        report_text = build_download_text(result, rows)
-        col_dl, col_new = st.columns([3, 1])
-        with col_dl:
-            st.download_button(
-                "Download Laporan (.txt)",
-                data=report_text,
-                file_name=f"laporan_pertek_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                mime="text/plain",
-                use_container_width=True,
-            )
-        with col_new:
-            if st.button("Analisis Baru", use_container_width=True, key="clear_bottom"):
-                st.session_state["clear_files"] += 1
-                st.session_state.pop("analysis_result", None)
-                st.rerun()
+        if "analysis_result" in st.session_state and st.session_state["analysis_result"]:
+            result = st.session_state["analysis_result"]
+            st.markdown("---")
+            st.markdown(f'<p class="page-info">Dianalisis pada {datetime.now().strftime("%d/%m/%Y %H:%M")}</p>', unsafe_allow_html=True)
+            rows = render_results(result)
 
-elif not uploaded_files:
-    st.markdown("")
-    col_a, col_b, col_c = st.columns(3)
-    with col_a:
-        st.markdown("**1. Upload**")
-        st.caption("Upload file PDF PI dan Pertek (bisa lebih dari 1 file)")
-    with col_b:
-        st.markdown("**2. Analisis**")
-        st.caption("Klik tombol Analisis & Cocokkan")
-    with col_c:
-        st.markdown("**3. Hasil**")
-        st.caption("Lihat hasil + download laporan")
+            st.markdown("---")
+            report_text = build_download_text(result, rows)
+            col_dl, col_new = st.columns([3, 1])
+            with col_dl:
+                st.download_button(
+                    "Download Laporan (.txt)",
+                    data=report_text,
+                    file_name=f"laporan_pertek_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                    mime="text/plain",
+                    use_container_width=True,
+                )
+            with col_new:
+                if st.button("Analisis Baru", use_container_width=True, key="clear_bottom"):
+                    st.session_state["clear_files"] += 1
+                    st.session_state.pop("analysis_result", None)
+                    st.rerun()
+
+    elif not uploaded_files:
+        st.markdown("")
+        col_a, col_b, col_c = st.columns(3)
+        with col_a:
+            st.markdown("**1. Upload**")
+            st.caption("Upload file PDF PI dan Pertek (bisa lebih dari 1 file)")
+        with col_b:
+            st.markdown("**2. Analisis**")
+            st.caption("Klik tombol Analisis & Cocokkan")
+        with col_c:
+            st.markdown("**3. Hasil**")
+            st.caption("Lihat hasil + download laporan")
+
+# ──────────────────────────────────────────────
+# TAB 2: REKAP DATA
+# ──────────────────────────────────────────────
+with tab_rekap:
+    render_rekap_tab()
 
 # Footer
 st.markdown("---")
-st.caption("Pertek Checker v4.0 | Data diproses secara aman dan tidak disimpan.")
+st.caption("Pertek Checker v5.0 | Data diproses secara aman.")
