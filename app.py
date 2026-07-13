@@ -3,6 +3,7 @@ import pdfplumber
 import json
 import io
 import os
+import gc
 import time
 import requests
 import gspread
@@ -229,33 +230,47 @@ def load_from_sheets():
 # ============================================================
 # PDF EXTRACTION
 # ============================================================
-def extract_pdf_text(uploaded_file):
-    """Extract all text from uploaded PDF, all pages."""
-    text = ""
+def extract_pdf_text(uploaded_file, max_chars=80000):
+    """Extract text from uploaded PDF with memory limit."""
+    parts = []
     total_pages = 0
+    char_count = 0
     try:
         file_bytes = uploaded_file.read()
-        with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+        buf = io.BytesIO(file_bytes)
+        del file_bytes
+        with pdfplumber.open(buf) as pdf:
             total_pages = len(pdf.pages)
             for i, page in enumerate(pdf.pages):
+                if char_count >= max_chars:
+                    parts.append(f"\n[... sisa halaman dilewati, batas karakter tercapai ...]\n")
+                    break
+
                 page_text = page.extract_text()
                 if page_text:
-                    text += f"--- Halaman {i+1}/{total_pages} ---\n{page_text}\n\n"
+                    chunk = f"--- Halaman {i+1}/{total_pages} ---\n{page_text}\n\n"
+                    parts.append(chunk)
+                    char_count += len(chunk)
 
-                # Also try extracting tables
                 tables = page.extract_tables()
                 if tables:
                     for table in tables:
                         for row in table:
                             if row:
                                 cleaned = [str(cell) if cell else "" for cell in row]
-                                text += " | ".join(cleaned) + "\n"
-                    text += "\n"
+                                line = " | ".join(cleaned) + "\n"
+                                parts.append(line)
+                                char_count += len(line)
+                    parts.append("\n")
 
+                page.flush_cache()
+
+        buf.close()
         uploaded_file.seek(0)
+        gc.collect()
     except Exception as e:
-        text = f"[Error membaca PDF: {e}]"
-    return text, total_pages
+        parts = [f"[Error membaca PDF: {e}]"]
+    return "".join(parts), total_pages
 
 
 # ============================================================
