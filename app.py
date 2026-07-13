@@ -230,8 +230,8 @@ def load_from_sheets():
 # ============================================================
 # PDF EXTRACTION
 # ============================================================
-def extract_pdf_text(uploaded_file, max_chars=80000):
-    """Extract text from uploaded PDF with memory limit."""
+def extract_pdf_text(uploaded_file, max_chars=60000, max_pages=150):
+    """Extract text from uploaded PDF with memory and page limits."""
     parts = []
     total_pages = 0
     char_count = 0
@@ -239,13 +239,18 @@ def extract_pdf_text(uploaded_file, max_chars=80000):
         file_bytes = uploaded_file.read()
         buf = io.BytesIO(file_bytes)
         del file_bytes
+        gc.collect()
+
         with pdfplumber.open(buf) as pdf:
             total_pages = len(pdf.pages)
-            for i, page in enumerate(pdf.pages):
+            pages_to_read = min(total_pages, max_pages)
+
+            for i in range(pages_to_read):
                 if char_count >= max_chars:
-                    parts.append(f"\n[... sisa halaman dilewati, batas karakter tercapai ...]\n")
+                    parts.append(f"\n[... sisa {total_pages - i} halaman dilewati (batas tercapai) ...]\n")
                     break
 
+                page = pdf.pages[i]
                 page_text = page.extract_text()
                 if page_text:
                     chunk = f"--- Halaman {i+1}/{total_pages} ---\n{page_text}\n\n"
@@ -264,8 +269,13 @@ def extract_pdf_text(uploaded_file, max_chars=80000):
                     parts.append("\n")
 
                 page.flush_cache()
+                del page
+
+            if pages_to_read < total_pages and char_count < max_chars:
+                parts.append(f"\n[... hanya {pages_to_read} dari {total_pages} halaman yang dibaca ...]\n")
 
         buf.close()
+        del buf
         uploaded_file.seek(0)
         gc.collect()
     except Exception as e:
