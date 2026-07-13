@@ -819,6 +819,11 @@ with tab_analisis:
         file_names = ", ".join([f"{p['name']} ({p['pages']}hal)" for p in pdf_texts])
         st.markdown(f'<div class="file-count">&#128196; {len(uploaded_files)} file diupload ({total_pages_all} halaman total): {file_names}</div>', unsafe_allow_html=True)
 
+        large_files = [p for p in pdf_texts if p["pages"] > 150]
+        if large_files:
+            names = ", ".join([f"**{p['name']}** ({p['pages']} hal)" for p in large_files])
+            st.warning(f"File besar terdeteksi: {names}. Hanya 150 halaman pertama yang dibaca. Data penting PI/Pertek biasanya ada di halaman awal, jadi hasil analisis tetap akurat.")
+
         with st.expander("Lihat teks yang diekstrak dari PDF", expanded=False):
             for item in pdf_texts:
                 st.markdown(f"**{item['name']}** ({item['pages']} halaman)")
