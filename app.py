@@ -415,14 +415,39 @@ def call_gemini(api_key, model, prompt_text):
 def analyze_documents(api_key, pdf_texts):
     prompt_text = SYSTEM_PROMPT + "\n\n" + build_user_prompt(pdf_texts)
     models = ["gemini-2.0-flash", "gemini-2.5-flash"]
+    last_error = ""
 
     for model in models:
-        for attempt in range(3):
-            response = call_gemini(api_key, model, prompt_text)
+        for attempt in range(4):
+            try:
+                response = call_gemini(api_key, model, prompt_text)
+            except requests.exceptions.Timeout:
+                last_error = "Request timeout. Server terlalu lama merespon."
+                if attempt < 3:
+                    time.sleep((attempt + 1) * 5)
+                    continue
+                else:
+                    break
+            except requests.exceptions.ConnectionError:
+                last_error = "Tidak bisa terhubung ke server Gemini."
+                if attempt < 3:
+                    time.sleep((attempt + 1) * 5)
+                    continue
+                else:
+                    break
 
-            if response.status_code in (500, 502, 503, 429):
-                if attempt < 2:
-                    time.sleep((attempt + 1) * 10)
+            if response.status_code == 429:
+                last_error = "Rate limit tercapai (terlalu banyak request). Tunggu sebentar."
+                if attempt < 3:
+                    time.sleep((attempt + 1) * 15)
+                    continue
+                else:
+                    break
+
+            if response.status_code in (500, 502, 503):
+                last_error = f"Server Gemini error (kode {response.status_code})."
+                if attempt < 3:
+                    time.sleep((attempt + 1) * 5)
                     continue
                 else:
                     break
@@ -442,7 +467,7 @@ def analyze_documents(api_key, pdf_texts):
 
             return json.loads(response_text)
 
-    raise ValueError("Server sedang sibuk. Coba lagi dalam 1-2 menit.")
+    raise ValueError(f"Gagal setelah beberapa percobaan. {last_error} Coba lagi dalam 1-2 menit.")
 
 
 # ============================================================
