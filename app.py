@@ -399,7 +399,8 @@ PENTING:
 - PI draft tanpa nomor/tanggal BUKAN ketidaksesuaian jika is_pi_perubahan = true.
 - INGAT: beda format/urutan penulisan BUKAN berarti Tidak Sesuai. Fokus pada isi/makna.
 - JANGAN cocokkan Negara Muat. Yang dicocokkan HANYA Pelabuhan Tujuan.
-- WAJIB isi rekap_data dan WAJIB isi daftar_barang dengan SEMUA item (sesuai maupun tidak)."""
+- WAJIB isi rekap_data dan WAJIB isi daftar_barang dengan SEMUA item (sesuai maupun tidak).
+- CEK RENCANA DISTRIBUSI: Jika ada rencana distribusi, pastikan nama dan alamat perusahaan mitra/pengguna akhir TIDAK SAMA dengan perusahaan pemohon. Jika sama, tandai sebagai ketidaksesuaian dan masukkan ke kesimpulan."""
 
 
 def build_user_prompt(pdf_texts):
