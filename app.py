@@ -230,7 +230,7 @@ def load_from_sheets():
 # ============================================================
 # PDF EXTRACTION
 # ============================================================
-def extract_pdf_text(uploaded_file, max_chars=60000, max_pages=150):
+def extract_pdf_text(uploaded_file, max_chars=150000, max_pages=500):
     """Extract text from uploaded PDF with memory and page limits."""
     parts = []
     total_pages = 0
@@ -844,10 +844,10 @@ with tab_analisis:
         file_names = ", ".join([f"{p['name']} ({p['pages']}hal)" for p in pdf_texts])
         st.markdown(f'<div class="file-count">&#128196; {len(uploaded_files)} file diupload ({total_pages_all} halaman total): {file_names}</div>', unsafe_allow_html=True)
 
-        large_files = [p for p in pdf_texts if p["pages"] > 150]
+        large_files = [p for p in pdf_texts if p["pages"] > 500]
         if large_files:
             names = ", ".join([f"**{p['name']}** ({p['pages']} hal)" for p in large_files])
-            st.warning(f"File besar terdeteksi: {names}. Hanya 150 halaman pertama yang dibaca. Data penting PI/Pertek biasanya ada di halaman awal, jadi hasil analisis tetap akurat.")
+            st.warning(f"File besar terdeteksi: {names}. Hanya 500 halaman pertama yang dibaca untuk menjaga performa.")
 
         with st.expander("Lihat teks yang diekstrak dari PDF", expanded=False):
             for item in pdf_texts:
