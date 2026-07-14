@@ -883,18 +883,23 @@ with tab_analisis:
                     st.error("Error parsing hasil analisis. Coba klik Analisis lagi.")
                 except requests.exceptions.HTTPError as e:
                     sc = e.response.status_code if e.response else 0
+                    body = ""
+                    try:
+                        body = e.response.json().get("error", {}).get("message", "") if e.response else ""
+                    except Exception:
+                        pass
                     if sc in (401, 403):
-                        st.error("API Key tidak valid. Hubungi administrator.")
+                        st.error(f"API Key tidak valid atau belum diaktifkan. {body}")
                     elif sc == 429:
                         st.error("Rate limit tercapai. Tunggu 1 menit lalu coba lagi.")
                     elif sc >= 500:
                         st.error("Server sedang sibuk. Tunggu beberapa detik lalu coba lagi.")
                     else:
-                        st.error(f"Terjadi error (kode {sc}). Coba lagi.")
+                        st.error(f"Terjadi error (kode {sc}). {body}")
                 except ValueError as e:
                     st.error(str(e))
-                except Exception:
-                    st.error("Terjadi error. Coba lagi dalam beberapa detik.")
+                except Exception as e:
+                    st.error(f"Terjadi error: {str(e)[:200]}")
 
         if "analysis_result" in st.session_state and st.session_state["analysis_result"]:
             result = st.session_state["analysis_result"]
