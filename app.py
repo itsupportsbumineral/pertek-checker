@@ -336,6 +336,7 @@ Struktur JSON:
         "no": 1,
         "hs_code": "...",
         "uraian": "nama komoditi",
+        "spesifikasi": "spesifikasi teknis barang (ukuran, grade, bentuk, dll). Tulis '-' jika tidak ada.",
         "jumlah_pi": "500 ton",
         "jumlah_pertek": "500 ton",
         "status": "Sesuai" atau "Tidak Sesuai",
@@ -368,6 +369,16 @@ Struktur JSON:
     "alasan_singkat": "1 kalimat",
     "pengecualian": [],
     "profil_usaha": "1 kalimat"
+  },
+
+  "rencana_distribusi": {
+    "ada": true atau false,
+    "pemohon": "nama perusahaan pemohon",
+    "mitra_pengguna_akhir": [
+      {"nama": "nama perusahaan mitra/pengguna akhir", "alamat": "alamat", "sama_dengan_pemohon": true atau false}
+    ],
+    "status": "Sesuai" atau "Tidak Sesuai",
+    "keterangan": "kosong jika sesuai, atau jelaskan jika mitra/pengguna akhir sama dengan pemohon"
   },
 
   "rekap_data": {
@@ -538,7 +549,7 @@ def render_results(result):
         daftar_barang = spec_data.get("daftar_barang", [])
         if daftar_barang:
             html = '<table class="detail-table">'
-            html += '<tr><th>No</th><th>HS Code</th><th>Komoditi</th><th>Jumlah PI</th><th>Jumlah Pertek</th><th>Status</th></tr>'
+            html += '<tr><th>No</th><th>HS Code</th><th>Komoditi</th><th>Spesifikasi</th><th>Jumlah PI</th><th>Jumlah Pertek</th><th>Status</th></tr>'
             for item in daftar_barang:
                 status_val = item.get("status", "")
                 if "Tidak" in str(status_val):
@@ -547,7 +558,8 @@ def render_results(result):
                 else:
                     row_style = ''
                     perbedaan = ""
-                html += f'<tr {row_style}><td>{item.get("no", "")}</td><td><strong>{item.get("hs_code", "")}</strong></td><td>{item.get("uraian", "")}{perbedaan}</td><td>{item.get("jumlah_pi", "-")}</td><td>{item.get("jumlah_pertek", "-")}</td><td>{status_badge(status_val)}</td></tr>'
+                spesifikasi = item.get("spesifikasi", "-")
+                html += f'<tr {row_style}><td>{item.get("no", "")}</td><td><strong>{item.get("hs_code", "")}</strong></td><td>{item.get("uraian", "")}{perbedaan}</td><td>{spesifikasi}</td><td>{item.get("jumlah_pi", "-")}</td><td>{item.get("jumlah_pertek", "-")}</td><td>{status_badge(status_val)}</td></tr>'
             html += '</table>'
             st.markdown(html, unsafe_allow_html=True)
         else:
@@ -575,10 +587,30 @@ def render_results(result):
             html += '</table>'
             st.markdown(html, unsafe_allow_html=True)
 
-    # 4. VPTI/LS — hanya tampilkan jika BUKAN PI Perubahan
+    # 4. Rencana Distribusi
+    dist_data = result.get("rencana_distribusi") or {}
+    if dist_data.get("ada"):
+        dist_status = dist_data.get("status", "N/A")
+        with st.expander(f"4. Rencana Distribusi — {dist_status}", expanded=False):
+            st.markdown(f"**Pemohon:** {dist_data.get('pemohon', '-')}")
+            mitra_list = dist_data.get("mitra_pengguna_akhir", [])
+            if mitra_list:
+                html = '<table class="detail-table">'
+                html += '<tr><th>Nama Mitra/Pengguna Akhir</th><th>Alamat</th><th>Sama dgn Pemohon?</th></tr>'
+                for m in mitra_list:
+                    sama = m.get("sama_dengan_pemohon", False)
+                    badge = '<span style="color:#991b1b;font-weight:600;">Ya ⚠️</span>' if sama else '<span style="color:#166534;">Tidak</span>'
+                    html += f'<tr><td>{m.get("nama", "-")}</td><td>{m.get("alamat", "-")}</td><td>{badge}</td></tr>'
+                html += '</table>'
+                st.markdown(html, unsafe_allow_html=True)
+            ket = dist_data.get("keterangan", "")
+            if ket:
+                st.warning(ket)
+
+    # 5. VPTI/LS — hanya tampilkan jika BUKAN PI Perubahan
     vpti_data = result.get("vpti_ls") or {}
     if vpti_data and not is_perubahan:
-        with st.expander("4. Analisis VPTI/LS", expanded=False):
+        with st.expander("5. Analisis VPTI/LS", expanded=False):
             vpti_html = '<table class="detail-table">'
             vpti_rows = [
                 ("Jenis API", vpti_data.get("jenis_api", "-")),
@@ -624,6 +656,9 @@ def render_results(result):
             rows.append((label, val, ""))
 
     rows.append(("Data PI vs Pertek", pi_data.get("status", "N/A"), ""))
+
+    if dist_data.get("ada"):
+        rows.append(("Rencana Distribusi", dist_data.get("status", "N/A"), dist_data.get("keterangan", "")))
 
     if vpti_data and not is_perubahan:
         wajib = vpti_data.get("wajib", True)
@@ -728,16 +763,29 @@ def build_download_text(result, rows):
         lines.append(f"   {item.get('aspek', '')}: PI={item.get('pi', '')} | Pertek={item.get('pertek', '')} -> {item.get('status', '')}")
     lines.append("")
 
+    dist_data = result.get("rencana_distribusi") or {}
+    if dist_data.get("ada"):
+        lines.append("4. RENCANA DISTRIBUSI")
+        lines.append(f"   Pemohon: {dist_data.get('pemohon', '-')}")
+        for m in dist_data.get("mitra_pengguna_akhir", []):
+            sama = "YA" if m.get("sama_dengan_pemohon") else "Tidak"
+            lines.append(f"   Mitra: {m.get('nama', '-')} ({m.get('alamat', '-')}) - Sama dgn pemohon: {sama}")
+        lines.append(f"   Status: {dist_data.get('status', '-')}")
+        ket = dist_data.get("keterangan", "")
+        if ket:
+            lines.append(f"   Keterangan: {ket}")
+        lines.append("")
+
     vpti_data = result.get("vpti_ls")
     if vpti_data:
-        lines.append("4. ANALISIS VPTI/LS")
+        lines.append("5. ANALISIS VPTI/LS")
         lines.append(f"   Jenis API: {vpti_data.get('jenis_api', '')}")
         lines.append(f"   KBLI: {vpti_data.get('kbli', '')} - {vpti_data.get('kbli_deskripsi', '')}")
         lines.append(f"   Wajib: {'Ya' if vpti_data.get('wajib', True) else 'Tidak'}")
         lines.append(f"   Alasan: {vpti_data.get('alasan_singkat', '')}")
         lines.append("")
     else:
-        lines.append("4. ANALISIS VPTI/LS")
+        lines.append("5. ANALISIS VPTI/LS")
         lines.append("   (Tidak berlaku - PI Perubahan)")
         lines.append("")
 
