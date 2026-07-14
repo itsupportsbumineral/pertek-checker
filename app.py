@@ -293,18 +293,28 @@ ATURAN PENTING:
 - JANGAN narasi panjang, cukup kalimat singkat.
 - Saat membandingkan spesifikasi/uraian barang: jika MAKNA/ISI SAMA tapi beda format penulisan, urutan kata, singkatan, atau bahasa → ANGGAP SESUAI.
 - Hanya anggap Tidak Sesuai jika ada perbedaan SUBSTANSIAL (beda HS code, beda jumlah angka, beda negara, beda jenis barang).
-- Untuk items barang: HANYA tampilkan item yang TIDAK SESUAI. Jangan tampilkan item yang sesuai.
+- Tampilkan SEMUA item barang (sesuai maupun tidak sesuai) di daftar_barang.
 - Baca SELURUH halaman dokumen dengan teliti, termasuk halaman-halaman lampiran dan tabel.
+
+PENANGANAN PI PERUBAHAN:
+- Jika dokumen adalah PI Perubahan (amandemen/revisi dari PI sebelumnya):
+  * Set is_pi_perubahan = true
+  * PI baru yang belum dinomori (draft) adalah HAL NORMAL → JANGAN anggap sebagai ketidaksesuaian
+  * JANGAN analisa VPTI/LS (set vpti_ls = null)
+  * Bandingkan PI Baru (draft) vs Pertek terbaru
+  * PI lama hanya sebagai referensi crosscheck perubahan
+  * Di kesimpulan, fokus ke: apa saja yang berubah dan berapa jumlahnya
 
 Struktur JSON:
 
 {
   "info": {
-    "nomor_pi": "...",
-    "tanggal_pi": "...",
+    "nomor_pi": "... (tulis 'Draft/Belum dinomori' jika belum ada)",
+    "tanggal_pi": "... (tulis 'Draft' jika belum ada)",
     "nomor_pertek": "...",
     "tanggal_pertek": "...",
-    "jenis_api": "API-P" atau "API-U"
+    "jenis_api": "API-P" atau "API-U",
+    "is_pi_perubahan": true atau false
   },
 
   "identitas_perusahaan": {
@@ -321,11 +331,15 @@ Struktur JSON:
     "total_items": 0,
     "total_sesuai": 0,
     "total_tidak_sesuai": 0,
-    "items_tidak_sesuai": [
+    "daftar_barang": [
       {
+        "no": 1,
         "hs_code": "...",
-        "uraian": "...",
-        "perbedaan": "singkat dan spesifik: 'Jumlah: PI=500 ton, Pertek=400 ton'"
+        "uraian": "nama komoditi",
+        "jumlah_pi": "500 ton",
+        "jumlah_pertek": "500 ton",
+        "status": "Sesuai" atau "Tidak Sesuai",
+        "perbedaan": "" atau "singkat: 'Jumlah: PI=500 ton, Pertek=400 ton'"
       }
     ],
     "ringkasan": {
@@ -357,20 +371,21 @@ Struktur JSON:
   },
 
   "rekap_data": {
-    "daftar_hs": ["list SEMUA HS code yang ada di dokumen, misal: 7213.91.30, 7225.50.90"],
-    "negara_muat": ["list semua negara muat, misal: China, India"],
-    "pelabuhan_tujuan": ["list semua pelabuhan tujuan, misal: Tanjung Priok, Tanjung Perak"]
+    "daftar_hs": ["list SEMUA HS code yang ada di dokumen"],
+    "negara_muat": ["list semua negara muat dari PI"],
+    "pelabuhan_tujuan": ["list semua pelabuhan tujuan"]
   },
 
   "kesimpulan": {
     "status": "DAPAT DIPROSES" atau "TIDAK DAPAT DIPROSES",
-    "catatan": "1-2 kalimat singkat rekomendasi atau alasan jika tidak dapat diproses.",
-    "ketidaksesuaian": ["list singkat aspek yg tidak sesuai, kosong jika semua sesuai"]
+    "catatan": "Singkat. Untuk PI Perubahan: sebutkan apa saja yang berubah dan jumlahnya.",
+    "ketidaksesuaian": ["list singkat aspek yg tidak sesuai, kosong jika semua sesuai"],
+    "perubahan": ["list perubahan dari PI lama ke PI baru, kosong jika bukan PI Perubahan. Contoh: 'HS 7320.20.90: jumlah berubah dari 500 ke 1500 Piece'"]
   }
 }
 
 PENTING:
-- Untuk VPTI/LS, periksa pengecualian:
+- Untuk VPTI/LS (HANYA jika BUKAN PI Perubahan), periksa pengecualian:
   * Impor ke KPBPB, KEK, atau TPB
   * Fasilitas KITE Pembebasan
   * API-P industri otomotif, elektronika, galangan kapal, mould & dies, pesawat terbang, atau alat berat
@@ -379,10 +394,12 @@ PENTING:
   * Penerima fasilitas BMDTP
   * Kontraktor KKS Migas, Kontrak Karya, atau proyek ketenagalistrikan
   * Barang HS 7213.91.30, 7213.91.90, 7213.99.90 (C > 0,6%), 7225.50.90 (TMBP)
+- Jika PI Perubahan: set vpti_ls = null, JANGAN analisa VPTI/LS.
 - Jika data tidak tersedia, tulis "Tidak tersedia"
+- PI draft tanpa nomor/tanggal BUKAN ketidaksesuaian jika is_pi_perubahan = true.
 - INGAT: beda format/urutan penulisan BUKAN berarti Tidak Sesuai. Fokus pada isi/makna.
-- JANGAN cocokkan Negara Muat. Kolom Negara Muat hanya ada di PI, TIDAK ada di Pertek. Jadi JANGAN pernah menandai item sebagai "Tidak Sesuai" karena perbedaan negara muat. Yang dicocokkan HANYA Pelabuhan Tujuan.
-- WAJIB isi rekap_data dengan SEMUA HS code, negara muat (dari PI), dan pelabuhan tujuan yang ada di dokumen."""
+- JANGAN cocokkan Negara Muat. Yang dicocokkan HANYA Pelabuhan Tujuan.
+- WAJIB isi rekap_data dan WAJIB isi daftar_barang dengan SEMUA item (sesuai maupun tidak)."""
 
 
 def build_user_prompt(pdf_texts):
@@ -483,83 +500,103 @@ def status_badge(status):
 
 def render_results(result):
     info = result.get("info", {})
+    is_perubahan = info.get("is_pi_perubahan", False)
 
     # Info bar
+    pi_label = "PI (Draft)" if is_perubahan and "Draft" in str(info.get("nomor_pi", "")) else "PI"
     st.markdown(f"""<div class="info-bar">
-        <strong>PI:</strong> {info.get('nomor_pi', '-')} ({info.get('tanggal_pi', '-')})
+        <strong>{pi_label}:</strong> {info.get('nomor_pi', '-')} ({info.get('tanggal_pi', '-')})
         &nbsp;&nbsp;|&nbsp;&nbsp;
         <strong>Pertek:</strong> {info.get('nomor_pertek', '-')} ({info.get('tanggal_pertek', '-')})
         &nbsp;&nbsp;|&nbsp;&nbsp;
         <strong>Jenis:</strong> {info.get('jenis_api', '-')}
+        {' &nbsp;&nbsp;|&nbsp;&nbsp; <strong style="color:#b45309;">PI Perubahan</strong>' if is_perubahan else ''}
     </div>""", unsafe_allow_html=True)
 
     # 1. Identitas Perusahaan
     id_data = result.get("identitas_perusahaan", {})
-    st.markdown('<div class="section-header">1. Identitas Perusahaan</div>', unsafe_allow_html=True)
-    id_items = id_data.get("items", [])
-    if id_items:
-        html = '<table class="detail-table">'
-        html += '<tr><th>Aspek</th><th>PI</th><th>Pertek</th><th>Status</th></tr>'
-        for item in id_items:
-            html += f'<tr><td>{item.get("aspek", "")}</td><td>{item.get("pi", "")}</td><td>{item.get("pertek", "")}</td><td>{status_badge(item.get("status", ""))}</td></tr>'
-        html += '</table>'
-        st.markdown(html, unsafe_allow_html=True)
+    with st.expander("1. Identitas Perusahaan", expanded=False):
+        id_items = id_data.get("items", [])
+        if id_items:
+            html = '<table class="detail-table">'
+            html += '<tr><th>Aspek</th><th>PI</th><th>Pertek</th><th>Status</th></tr>'
+            for item in id_items:
+                html += f'<tr><td>{item.get("aspek", "")}</td><td>{item.get("pi", "")}</td><td>{item.get("pertek", "")}</td><td>{status_badge(item.get("status", ""))}</td></tr>'
+            html += '</table>'
+            st.markdown(html, unsafe_allow_html=True)
 
     # 2. Spesifikasi Barang
     spec_data = result.get("spesifikasi_barang", {})
     total = spec_data.get("total_items", 0)
     total_ok = spec_data.get("total_sesuai", 0)
     total_bad = spec_data.get("total_tidak_sesuai", 0)
-    st.markdown(f'<div class="section-header">2. Spesifikasi Barang &nbsp;<span style="font-weight:normal;color:#64748b;">({total_ok}/{total} sesuai)</span></div>', unsafe_allow_html=True)
 
-    tidak_sesuai_items = spec_data.get("items_tidak_sesuai", [])
-    if tidak_sesuai_items:
-        html = '<table class="detail-table">'
-        html += '<tr><th>HS Code</th><th>Uraian</th><th>Perbedaan</th></tr>'
-        for item in tidak_sesuai_items:
-            html += f'<tr><td><strong>{item.get("hs_code", "")}</strong></td><td>{item.get("uraian", "")}</td><td style="color:#991b1b;">{item.get("perbedaan", "")}</td></tr>'
-        html += '</table>'
-        st.markdown(html, unsafe_allow_html=True)
-    else:
-        if total > 0:
-            st.success(f"Seluruh {total} item sesuai")
+    with st.expander(f"2. Spesifikasi Barang ({total_ok}/{total} sesuai)", expanded=True):
+        # Tampilkan SEMUA item barang
+        daftar_barang = spec_data.get("daftar_barang", [])
+        if daftar_barang:
+            html = '<table class="detail-table">'
+            html += '<tr><th>No</th><th>HS Code</th><th>Komoditi</th><th>Jumlah PI</th><th>Jumlah Pertek</th><th>Status</th></tr>'
+            for item in daftar_barang:
+                status_val = item.get("status", "")
+                if "Tidak" in str(status_val):
+                    row_style = 'style="background:#fef2f2;"'
+                    perbedaan = f'<br><small style="color:#991b1b;">{item.get("perbedaan", "")}</small>' if item.get("perbedaan") else ""
+                else:
+                    row_style = ''
+                    perbedaan = ""
+                html += f'<tr {row_style}><td>{item.get("no", "")}</td><td><strong>{item.get("hs_code", "")}</strong></td><td>{item.get("uraian", "")}{perbedaan}</td><td>{item.get("jumlah_pi", "-")}</td><td>{item.get("jumlah_pertek", "-")}</td><td>{status_badge(status_val)}</td></tr>'
+            html += '</table>'
+            st.markdown(html, unsafe_allow_html=True)
+        else:
+            # Fallback: tampilkan items_tidak_sesuai jika daftar_barang kosong
+            tidak_sesuai_items = spec_data.get("items_tidak_sesuai", [])
+            if tidak_sesuai_items:
+                html = '<table class="detail-table">'
+                html += '<tr><th>HS Code</th><th>Uraian</th><th>Perbedaan</th></tr>'
+                for item in tidak_sesuai_items:
+                    html += f'<tr><td><strong>{item.get("hs_code", "")}</strong></td><td>{item.get("uraian", "")}</td><td style="color:#991b1b;">{item.get("perbedaan", "")}</td></tr>'
+                html += '</table>'
+                st.markdown(html, unsafe_allow_html=True)
+            elif total > 0:
+                st.success(f"Seluruh {total} item sesuai")
 
     # 3. Data PI vs Pertek
     pi_data = result.get("data_pi_vs_pertek", {})
-    st.markdown('<div class="section-header">3. Data PI vs Pertek</div>', unsafe_allow_html=True)
-    pi_items = pi_data.get("items", [])
-    if pi_items:
-        html = '<table class="detail-table">'
-        html += '<tr><th>Aspek</th><th>PI</th><th>Pertek</th><th>Status</th></tr>'
-        for item in pi_items:
-            html += f'<tr><td>{item.get("aspek", "")}</td><td>{item.get("pi", "")}</td><td>{item.get("pertek", "")}</td><td>{status_badge(item.get("status", ""))}</td></tr>'
-        html += '</table>'
-        st.markdown(html, unsafe_allow_html=True)
+    with st.expander("3. Data PI vs Pertek", expanded=False):
+        pi_items = pi_data.get("items", [])
+        if pi_items:
+            html = '<table class="detail-table">'
+            html += '<tr><th>Aspek</th><th>PI</th><th>Pertek</th><th>Status</th></tr>'
+            for item in pi_items:
+                html += f'<tr><td>{item.get("aspek", "")}</td><td>{item.get("pi", "")}</td><td>{item.get("pertek", "")}</td><td>{status_badge(item.get("status", ""))}</td></tr>'
+            html += '</table>'
+            st.markdown(html, unsafe_allow_html=True)
 
-    # 4. VPTI/LS
-    vpti_data = result.get("vpti_ls", {})
-    st.markdown('<div class="section-header">4. Analisis VPTI/LS</div>', unsafe_allow_html=True)
+    # 4. VPTI/LS — hanya tampilkan jika BUKAN PI Perubahan
+    vpti_data = result.get("vpti_ls") or {}
+    if vpti_data and not is_perubahan:
+        with st.expander("4. Analisis VPTI/LS", expanded=False):
+            vpti_html = '<table class="detail-table">'
+            vpti_rows = [
+                ("Jenis API", vpti_data.get("jenis_api", "-")),
+                ("KBLI", f"{vpti_data.get('kbli', '-')} - {vpti_data.get('kbli_deskripsi', '')}"),
+                ("Profil Usaha", vpti_data.get("profil_usaha", "-")),
+            ]
+            if vpti_data.get("pengecualian"):
+                vpti_rows.append(("Pengecualian", ", ".join(vpti_data["pengecualian"])))
+            vpti_rows.append(("Alasan", vpti_data.get("alasan_singkat", "-")))
 
-    vpti_html = '<table class="detail-table">'
-    vpti_rows = [
-        ("Jenis API", vpti_data.get("jenis_api", "-")),
-        ("KBLI", f"{vpti_data.get('kbli', '-')} - {vpti_data.get('kbli_deskripsi', '')}"),
-        ("Profil Usaha", vpti_data.get("profil_usaha", "-")),
-    ]
-    if vpti_data.get("pengecualian"):
-        vpti_rows.append(("Pengecualian", ", ".join(vpti_data["pengecualian"])))
-    vpti_rows.append(("Alasan", vpti_data.get("alasan_singkat", "-")))
+            for label, val in vpti_rows:
+                vpti_html += f'<tr><td style="width:30%;font-weight:600;">{label}</td><td>{val}</td></tr>'
+            vpti_html += '</table>'
+            st.markdown(vpti_html, unsafe_allow_html=True)
 
-    for label, val in vpti_rows:
-        vpti_html += f'<tr><td style="width:30%;font-weight:600;">{label}</td><td>{val}</td></tr>'
-    vpti_html += '</table>'
-    st.markdown(vpti_html, unsafe_allow_html=True)
-
-    wajib = vpti_data.get("wajib", True)
-    if wajib:
-        st.warning("**Wajib VPTI/LS**")
-    else:
-        st.success("**Tidak wajib VPTI/LS**")
+            wajib = vpti_data.get("wajib", True)
+            if wajib:
+                st.warning("**Wajib VPTI/LS**")
+            else:
+                st.success("**Tidak wajib VPTI/LS**")
 
     # ============================================================
     # KESIMPULAN AKHIR TABLE
@@ -585,8 +622,10 @@ def render_results(result):
             rows.append((label, val, ""))
 
     rows.append(("Data PI vs Pertek", pi_data.get("status", "N/A"), ""))
-    rows.append(("Profil usaha", vpti_data.get("profil_usaha", "N/A"), ""))
-    rows.append(("Kewajiban VPTI/LS", "Wajib VPTI/LS" if wajib else "Tidak wajib VPTI/LS", ""))
+
+    if vpti_data and not is_perubahan:
+        wajib = vpti_data.get("wajib", True)
+        rows.append(("Kewajiban VPTI/LS", "Wajib VPTI/LS" if wajib else "Tidak wajib VPTI/LS", ""))
 
     html = '<table class="summary-table">'
     html += '<tr><th style="width:35%">Aspek Pemeriksaan</th><th>Hasil</th></tr>'
@@ -615,12 +654,18 @@ def render_results(result):
     status_str = kesimpulan.get("status", "DAPAT DIPROSES")
     catatan = kesimpulan.get("catatan", "")
     ketidaksesuaian = kesimpulan.get("ketidaksesuaian", [])
+    perubahan = kesimpulan.get("perubahan", [])
 
     if "DAPAT" in status_str and "TIDAK" not in status_str:
         html = f'<div class="conclusion-card conclusion-dapat">'
         html += f'<strong style="color:#166534;font-size:1.1rem;">&#9989; {status_str}</strong>'
         if catatan:
-            html += f'<br><span style="color:#15803d;font-size:0.9rem;">Catatan: {catatan}</span>'
+            html += f'<br><span style="color:#15803d;font-size:0.9rem;">{catatan}</span>'
+        if perubahan:
+            html += '<br><br><strong style="color:#166534;">Perubahan:</strong><ul style="margin:0.3rem 0 0 1.2rem;color:#15803d;">'
+            for p in perubahan:
+                html += f'<li>{p}</li>'
+            html += '</ul>'
         html += '</div>'
         st.markdown(html, unsafe_allow_html=True)
     else:
@@ -632,6 +677,11 @@ def render_results(result):
             html += '<br><br><strong style="color:#991b1b;">Ketidaksesuaian:</strong><ul style="margin:0.3rem 0 0 1.2rem;color:#991b1b;">'
             for k in ketidaksesuaian:
                 html += f'<li>{k}</li>'
+            html += '</ul>'
+        if perubahan:
+            html += '<br><strong style="color:#991b1b;">Perubahan:</strong><ul style="margin:0.3rem 0 0 1.2rem;color:#991b1b;">'
+            for p in perubahan:
+                html += f'<li>{p}</li>'
             html += '</ul>'
         html += '</div>'
         st.markdown(html, unsafe_allow_html=True)
