@@ -424,6 +424,7 @@ def call_gemini(api_key, model, prompt_text):
             "temperature": 0.1,
             "maxOutputTokens": 65536,
             "responseMimeType": "application/json",
+            "thinkingConfig": {"thinkingBudget": 0},
         }
     }
     return requests.post(url, json=payload, timeout=240)
