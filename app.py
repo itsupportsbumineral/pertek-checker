@@ -728,13 +728,18 @@ def build_download_text(result, rows):
         lines.append(f"   {item.get('aspek', '')}: PI={item.get('pi', '')} | Pertek={item.get('pertek', '')} -> {item.get('status', '')}")
     lines.append("")
 
-    vpti_data = result.get("vpti_ls", {})
-    lines.append("4. ANALISIS VPTI/LS")
-    lines.append(f"   Jenis API: {vpti_data.get('jenis_api', '')}")
-    lines.append(f"   KBLI: {vpti_data.get('kbli', '')} - {vpti_data.get('kbli_deskripsi', '')}")
-    lines.append(f"   Wajib: {'Ya' if vpti_data.get('wajib', True) else 'Tidak'}")
-    lines.append(f"   Alasan: {vpti_data.get('alasan_singkat', '')}")
-    lines.append("")
+    vpti_data = result.get("vpti_ls")
+    if vpti_data:
+        lines.append("4. ANALISIS VPTI/LS")
+        lines.append(f"   Jenis API: {vpti_data.get('jenis_api', '')}")
+        lines.append(f"   KBLI: {vpti_data.get('kbli', '')} - {vpti_data.get('kbli_deskripsi', '')}")
+        lines.append(f"   Wajib: {'Ya' if vpti_data.get('wajib', True) else 'Tidak'}")
+        lines.append(f"   Alasan: {vpti_data.get('alasan_singkat', '')}")
+        lines.append("")
+    else:
+        lines.append("4. ANALISIS VPTI/LS")
+        lines.append("   (Tidak berlaku - PI Perubahan)")
+        lines.append("")
 
     lines.append("=" * 60)
     lines.append("KESIMPULAN AKHIR")
