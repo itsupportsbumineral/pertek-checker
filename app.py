@@ -256,17 +256,19 @@ def extract_pdf_text(uploaded_file, max_chars=150000, max_pages=500):
                     chunk = f"--- Halaman {i+1}/{total_pages} ---\n{page_text}\n\n"
                     parts.append(chunk)
                     char_count += len(chunk)
-
-                tables = page.extract_tables()
-                if tables:
-                    for table in tables:
-                        for row in table:
-                            if row:
-                                cleaned = [str(cell) if cell else "" for cell in row]
-                                line = " | ".join(cleaned) + "\n"
-                                parts.append(line)
-                                char_count += len(line)
-                    parts.append("\n")
+                else:
+                    # Hanya extract tabel jika tidak ada teks (hindari duplikat)
+                    tables = page.extract_tables()
+                    if tables:
+                        parts.append(f"--- Halaman {i+1}/{total_pages} ---\n")
+                        for table in tables:
+                            for row in table:
+                                if row:
+                                    cleaned = [str(cell) if cell else "" for cell in row]
+                                    line = " | ".join(cleaned) + "\n"
+                                    parts.append(line)
+                                    char_count += len(line)
+                        parts.append("\n")
 
                 page.flush_cache()
                 del page
@@ -443,10 +445,11 @@ def build_user_prompt(pdf_texts):
 # ============================================================
 # CALL GEMINI API
 # ============================================================
-def call_gemini(api_key, model, prompt_text):
+def call_gemini(api_key, model, system_prompt, user_prompt):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     payload = {
-        "contents": [{"parts": [{"text": prompt_text}]}],
+        "systemInstruction": {"parts": [{"text": system_prompt}]},
+        "contents": [{"parts": [{"text": user_prompt}]}],
         "generationConfig": {
             "temperature": 0.1,
             "maxOutputTokens": 65536,
@@ -458,14 +461,14 @@ def call_gemini(api_key, model, prompt_text):
 
 
 def analyze_documents(api_key, pdf_texts):
-    prompt_text = SYSTEM_PROMPT + "\n\n" + build_user_prompt(pdf_texts)
+    user_prompt = build_user_prompt(pdf_texts)
     models = ["gemini-3.1-flash-lite"]
     last_error = ""
 
     for model in models:
         for attempt in range(4):
             try:
-                response = call_gemini(api_key, model, prompt_text)
+                response = call_gemini(api_key, model, SYSTEM_PROMPT, user_prompt)
             except requests.exceptions.Timeout:
                 last_error = "Request timeout. Server terlalu lama merespon."
                 if attempt < 3:
@@ -1012,6 +1015,15 @@ with tab_analisis:
                 st.text(item["text"][:8000] + ("..." if len(item["text"]) > 8000 else ""))
                 st.divider()
 
+        # Estimasi biaya
+        total_chars = sum(len(p["text"]) for p in pdf_texts)
+        est_tokens = total_chars // 3  # ~3 chars per token
+        est_input_cost = est_tokens * 0.075 / 1_000_000  # gemini-3.1-flash-lite: $0.075/1M input
+        est_output_cost = 0.3 / 1_000_000 * 3000  # estimasi ~3k output tokens, $0.3/1M
+        est_total_usd = est_input_cost + est_output_cost
+        est_total_idr = est_total_usd * 16500
+        st.caption(f"Estimasi: ~{est_tokens:,} token input | Biaya: ~Rp {est_total_idr:,.0f}")
+
         st.markdown("")
         col1, col2 = st.columns([3, 1])
         with col1:
@@ -1082,16 +1094,31 @@ with tab_analisis:
                     st.rerun()
 
     elif not uploaded_files:
-        st.markdown("")
-        col_a, col_b, col_c = st.columns(3)
-        with col_a:
-            st.markdown("**1. Upload**")
-            st.caption("Upload file PDF PI dan Pertek (bisa lebih dari 1 file)")
-        with col_b:
-            st.markdown("**2. Analisis**")
-            st.caption("Klik tombol Analisis & Cocokkan")
-        with col_c:
-            st.markdown("**3. Hasil**")
+        # Tampilkan hasil terakhir jika ada
+        if "analysis_result" in st.session_state and st.session_state["analysis_result"]:
+            result = st.session_state["analysis_result"]
+            st.info("Menampilkan hasil analisis terakhir. Upload file baru untuk analisis baru.")
+            rows = render_results(result)
+            st.markdown("---")
+            report_text = build_download_text(result, rows)
+            st.download_button(
+                "Download Laporan (.txt)",
+                data=report_text,
+                file_name=f"laporan_pertek_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                mime="text/plain",
+                use_container_width=True,
+            )
+        else:
+            st.markdown("")
+            col_a, col_b, col_c = st.columns(3)
+            with col_a:
+                st.markdown("**1. Upload**")
+                st.caption("Upload file PDF PI dan Pertek (bisa lebih dari 1 file)")
+            with col_b:
+                st.markdown("**2. Analisis**")
+                st.caption("Klik tombol Analisis & Cocokkan")
+            with col_c:
+                st.markdown("**3. Hasil**")
             st.caption("Lihat hasil + download laporan")
 
 # ──────────────────────────────────────────────
