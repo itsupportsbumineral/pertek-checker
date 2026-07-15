@@ -546,7 +546,14 @@ def render_results(result):
 
     # 1. Identitas Perusahaan
     id_data = result.get("identitas_perusahaan", {})
-    with st.expander("1. Identitas Perusahaan", expanded=False):
+    id_status = id_data.get("status", "N/A")
+    if "Tidak" in str(id_status):
+        id_status_label = "Tidak Sesuai"
+    elif "Sesuai" in str(id_status):
+        id_status_label = "Sesuai"
+    else:
+        id_status_label = id_status
+    with st.expander(f"1. Identitas Perusahaan — {id_status_label}", expanded=False):
         id_items = id_data.get("items", [])
         if id_items:
             html = '<table class="detail-table">'
@@ -595,7 +602,14 @@ def render_results(result):
 
     # 3. Data PI vs Pertek
     pi_data = result.get("data_pi_vs_pertek", {})
-    with st.expander("3. Data PI vs Pertek", expanded=False):
+    pi_status = pi_data.get("status", "N/A")
+    if "Tidak" in str(pi_status):
+        pi_status_label = "Tidak Sesuai"
+    elif "Sesuai" in str(pi_status):
+        pi_status_label = "Sesuai"
+    else:
+        pi_status_label = pi_status
+    with st.expander(f"3. Data PI vs Pertek — {pi_status_label}", expanded=False):
         pi_items = pi_data.get("items", [])
         if pi_items:
             html = '<table class="detail-table">'
