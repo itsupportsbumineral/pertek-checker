@@ -782,13 +782,23 @@ def build_download_text(result, rows):
     total = spec_data.get("total_items", 0)
     total_ok = spec_data.get("total_sesuai", 0)
     lines.append(f"2. SPESIFIKASI BARANG ({total_ok}/{total} sesuai)")
-    tidak_sesuai = spec_data.get("items_tidak_sesuai", [])
-    if tidak_sesuai:
-        lines.append("   Item tidak sesuai:")
-        for item in tidak_sesuai:
-            lines.append(f"   - HS {item.get('hs_code', '')}: {item.get('perbedaan', '')}")
+    daftar_barang = spec_data.get("daftar_barang", [])
+    if daftar_barang:
+        for item in daftar_barang:
+            status_txt = item.get("status", "")
+            spec_txt = item.get("spesifikasi", "-")
+            line = f"   {item.get('no', '')}. HS {item.get('hs_code', '')} | {item.get('uraian', '')} | Spec: {spec_txt} | PI: {item.get('jumlah_pi', '-')} | Pertek: {item.get('jumlah_pertek', '-')} | {status_txt}"
+            if item.get("perbedaan"):
+                line += f" ({item['perbedaan']})"
+            lines.append(line)
     else:
-        lines.append("   Seluruh item sesuai")
+        tidak_sesuai = spec_data.get("items_tidak_sesuai", [])
+        if tidak_sesuai:
+            lines.append("   Item tidak sesuai:")
+            for item in tidak_sesuai:
+                lines.append(f"   - HS {item.get('hs_code', '')}: {item.get('perbedaan', '')}")
+        else:
+            lines.append("   Seluruh item sesuai")
     lines.append("")
 
     lines.append("3. DATA PI VS PERTEK")
@@ -845,6 +855,11 @@ def build_download_text(result, rows):
         lines.append("Ketidaksesuaian:")
         for k in ketidaksesuaian:
             lines.append(f"  - {k}")
+    perubahan = kesimpulan.get("perubahan", [])
+    if perubahan:
+        lines.append("Perubahan:")
+        for p in perubahan:
+            lines.append(f"  - {p}")
 
     return "\n".join(lines)
 
