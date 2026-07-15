@@ -459,7 +459,7 @@ def call_gemini(api_key, model, prompt_text):
 
 def analyze_documents(api_key, pdf_texts):
     prompt_text = SYSTEM_PROMPT + "\n\n" + build_user_prompt(pdf_texts)
-    models = ["gemini-3.1-flash-lite", "gemini-3.5-flash"]
+    models = ["gemini-3.1-flash-lite"]
     last_error = ""
 
     for model in models:
