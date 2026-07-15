@@ -373,12 +373,23 @@ Struktur JSON:
 
   "rencana_distribusi": {
     "ada": true atau false,
-    "pemohon": "nama perusahaan pemohon",
+    "penandatangan_distribusi": "nama penandatangan dokumen rencana distribusi",
+    "penanggung_jawab_pertek": "nama penanggung jawab di Pertek",
+    "penandatangan_sesuai": true atau false,
+    "alokasi": [
+      {
+        "hs_code": "...",
+        "uraian": "...",
+        "jumlah_distribusi": "jumlah total alokasi di rencana distribusi",
+        "jumlah_pertek": "jumlah di Pertek",
+        "status": "Sesuai" atau "Tidak Sesuai (melebihi Pertek)"
+      }
+    ],
     "mitra_pengguna_akhir": [
-      {"nama": "nama perusahaan mitra/pengguna akhir", "alamat": "alamat", "sama_dengan_pemohon": true atau false}
+      {"nama": "nama perusahaan mitra/pengguna akhir", "alamat": "alamat"}
     ],
     "status": "Sesuai" atau "Tidak Sesuai",
-    "keterangan": "kosong jika sesuai, atau jelaskan jika mitra/pengguna akhir sama dengan pemohon"
+    "keterangan": "kosong jika sesuai, atau jelaskan ketidaksesuaian"
   },
 
   "rekap_data": {
@@ -411,7 +422,11 @@ PENTING:
 - INGAT: beda format/urutan penulisan BUKAN berarti Tidak Sesuai. Fokus pada isi/makna.
 - JANGAN cocokkan Negara Muat. Yang dicocokkan HANYA Pelabuhan Tujuan.
 - WAJIB isi rekap_data dan WAJIB isi daftar_barang dengan SEMUA item (sesuai maupun tidak).
-- CEK RENCANA DISTRIBUSI: Jika ada rencana distribusi, pastikan nama dan alamat perusahaan mitra/pengguna akhir TIDAK SAMA dengan perusahaan pemohon. Jika sama, tandai sebagai ketidaksesuaian dan masukkan ke kesimpulan."""
+- CEK RENCANA DISTRIBUSI (khusus API-U, jika dokumen rencana distribusi ada):
+  1. Penandatangan dokumen rencana distribusi HARUS SAMA dengan penanggung jawab di Pertek. Jika berbeda → Tidak Sesuai.
+  2. Total alokasi per item di rencana distribusi HARUS SAMA ATAU LEBIH KECIL dari jumlah di Pertek. Jika melebihi → Tidak Sesuai.
+  3. Tampilkan daftar mitra/pengguna akhir beserta alamatnya.
+  Jika bukan API-U atau tidak ada rencana distribusi, set rencana_distribusi.ada = false."""
 
 
 def build_user_prompt(pdf_texts):
@@ -592,17 +607,36 @@ def render_results(result):
     if dist_data.get("ada"):
         dist_status = dist_data.get("status", "N/A")
         with st.expander(f"4. Rencana Distribusi — {dist_status}", expanded=False):
-            st.markdown(f"**Pemohon:** {dist_data.get('pemohon', '-')}")
-            mitra_list = dist_data.get("mitra_pengguna_akhir", [])
-            if mitra_list:
+            # Penandatangan
+            penandatangan = dist_data.get("penandatangan_distribusi", "-")
+            pj_pertek = dist_data.get("penanggung_jawab_pertek", "-")
+            tanda_sesuai = dist_data.get("penandatangan_sesuai", True)
+            tanda_badge = '<span style="color:#166534;font-weight:600;">Sesuai</span>' if tanda_sesuai else '<span style="color:#991b1b;font-weight:600;">Tidak Sesuai ⚠️</span>'
+            st.markdown(f"**Penandatangan Distribusi:** {penandatangan}")
+            st.markdown(f"**Penanggung Jawab Pertek:** {pj_pertek} — {tanda_badge}", unsafe_allow_html=True)
+
+            # Alokasi
+            alokasi = dist_data.get("alokasi", [])
+            if alokasi:
+                st.markdown("**Alokasi:**")
                 html = '<table class="detail-table">'
-                html += '<tr><th>Nama Mitra/Pengguna Akhir</th><th>Alamat</th><th>Sama dgn Pemohon?</th></tr>'
-                for m in mitra_list:
-                    sama = m.get("sama_dengan_pemohon", False)
-                    badge = '<span style="color:#991b1b;font-weight:600;">Ya ⚠️</span>' if sama else '<span style="color:#166534;">Tidak</span>'
-                    html += f'<tr><td>{m.get("nama", "-")}</td><td>{m.get("alamat", "-")}</td><td>{badge}</td></tr>'
+                html += '<tr><th>HS Code</th><th>Uraian</th><th>Jml Distribusi</th><th>Jml Pertek</th><th>Status</th></tr>'
+                for a in alokasi:
+                    html += f'<tr><td><strong>{a.get("hs_code", "")}</strong></td><td>{a.get("uraian", "")}</td><td>{a.get("jumlah_distribusi", "-")}</td><td>{a.get("jumlah_pertek", "-")}</td><td>{status_badge(a.get("status", ""))}</td></tr>'
                 html += '</table>'
                 st.markdown(html, unsafe_allow_html=True)
+
+            # Mitra
+            mitra_list = dist_data.get("mitra_pengguna_akhir", [])
+            if mitra_list:
+                st.markdown("**Mitra/Pengguna Akhir:**")
+                html = '<table class="detail-table">'
+                html += '<tr><th>Nama</th><th>Alamat</th></tr>'
+                for m in mitra_list:
+                    html += f'<tr><td>{m.get("nama", "-")}</td><td>{m.get("alamat", "-")}</td></tr>'
+                html += '</table>'
+                st.markdown(html, unsafe_allow_html=True)
+
             ket = dist_data.get("keterangan", "")
             if ket:
                 st.warning(ket)
@@ -766,10 +800,13 @@ def build_download_text(result, rows):
     dist_data = result.get("rencana_distribusi") or {}
     if dist_data.get("ada"):
         lines.append("4. RENCANA DISTRIBUSI")
-        lines.append(f"   Pemohon: {dist_data.get('pemohon', '-')}")
+        lines.append(f"   Penandatangan: {dist_data.get('penandatangan_distribusi', '-')}")
+        lines.append(f"   Penanggung Jawab Pertek: {dist_data.get('penanggung_jawab_pertek', '-')}")
+        lines.append(f"   Penandatangan sesuai: {'Ya' if dist_data.get('penandatangan_sesuai') else 'TIDAK'}")
+        for a in dist_data.get("alokasi", []):
+            lines.append(f"   Alokasi HS {a.get('hs_code', '')}: Distribusi={a.get('jumlah_distribusi', '-')} | Pertek={a.get('jumlah_pertek', '-')} -> {a.get('status', '')}")
         for m in dist_data.get("mitra_pengguna_akhir", []):
-            sama = "YA" if m.get("sama_dengan_pemohon") else "Tidak"
-            lines.append(f"   Mitra: {m.get('nama', '-')} ({m.get('alamat', '-')}) - Sama dgn pemohon: {sama}")
+            lines.append(f"   Mitra: {m.get('nama', '-')} ({m.get('alamat', '-')})")
         lines.append(f"   Status: {dist_data.get('status', '-')}")
         ket = dist_data.get("keterangan", "")
         if ket:
