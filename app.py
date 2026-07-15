@@ -295,7 +295,7 @@ ATURAN PENTING:
 - JANGAN narasi panjang, cukup kalimat singkat.
 - Saat membandingkan spesifikasi/uraian barang: jika MAKNA/ISI SAMA tapi beda format penulisan, urutan kata, singkatan, atau bahasa → ANGGAP SESUAI.
 - Hanya anggap Tidak Sesuai jika ada perbedaan SUBSTANSIAL (beda HS code, beda jumlah angka, beda negara, beda jenis barang).
-- Tampilkan SEMUA item barang (sesuai maupun tidak sesuai) di daftar_barang.
+- WAJIB tampilkan SETIAP item barang SATU PER SATU di daftar_barang, tanpa terkecuali. Jika ada 40 item, HARUS ada 40 entry. JANGAN skip, JANGAN ringkas, JANGAN tulis "dan seterusnya". Tulis SEMUA dari item pertama sampai terakhir.
 - Baca SELURUH halaman dokumen dengan teliti, termasuk halaman-halaman lampiran dan tabel.
 
 PENANGANAN PI PERUBAHAN:
@@ -423,7 +423,8 @@ PENTING:
 - PI draft tanpa nomor/tanggal BUKAN ketidaksesuaian jika is_pi_perubahan = true.
 - INGAT: beda format/urutan penulisan BUKAN berarti Tidak Sesuai. Fokus pada isi/makna.
 - JANGAN cocokkan Negara Muat. Yang dicocokkan HANYA Pelabuhan Tujuan.
-- WAJIB isi rekap_data dan WAJIB isi daftar_barang dengan SEMUA item (sesuai maupun tidak).
+- WAJIB isi rekap_data.
+- KRITIS: daftar_barang HARUS berisi SELURUH item yang ada di dokumen, dari nomor 1 sampai terakhir. Jika dokumen punya 40 item maka daftar_barang HARUS punya 40 entry. Tidak boleh diringkas atau diwakilkan.
 - CEK RENCANA DISTRIBUSI (khusus API-U, jika dokumen rencana distribusi ada):
   1. Penandatangan dokumen rencana distribusi HARUS SAMA dengan penanggung jawab di Pertek. Jika berbeda → Tidak Sesuai.
   2. Total alokasi per item di rencana distribusi HARUS SAMA ATAU LEBIH KECIL dari jumlah di Pertek. Jika melebihi → Tidak Sesuai.
