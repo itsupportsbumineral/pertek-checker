@@ -302,10 +302,11 @@ PENANGANAN PI PERUBAHAN:
 - Jika dokumen adalah PI Perubahan (amandemen/revisi dari PI sebelumnya):
   * Set is_pi_perubahan = true
   * PI baru yang belum dinomori (draft) adalah HAL NORMAL → JANGAN anggap sebagai ketidaksesuaian
-  * JANGAN analisa VPTI/LS (set vpti_ls = null)
+  * JANGAN analisa VPTI/LS (set vpti_ls = null) — VPTI/LS hanya untuk PI baru
   * Bandingkan PI Baru (draft) vs Pertek terbaru
   * PI lama hanya sebagai referensi crosscheck perubahan
   * Di kesimpulan, fokus ke: apa saja yang berubah dan berapa jumlahnya
+  * TETAP analisa Rencana Distribusi jika API-U dan dokumen distribusi ada
 
 Struktur JSON:
 
@@ -409,27 +410,35 @@ Struktur JSON:
 }
 
 PENTING:
-- Untuk VPTI/LS (HANYA jika BUKAN PI Perubahan), periksa pengecualian:
-  * Impor ke KPBPB, KEK, atau TPB
-  * Fasilitas KITE Pembebasan
-  * API-P industri otomotif, elektronika, galangan kapal, mould & dies, pesawat terbang, atau alat berat
-  * API-P berstatus AEO atau MITA Kepabeanan
-  * API-P pengguna SKVI USDFS
-  * Penerima fasilitas BMDTP
-  * Kontraktor KKS Migas, Kontrak Karya, atau proyek ketenagalistrikan
-  * Barang HS 7213.91.30, 7213.91.90, 7213.99.90 (C > 0,6%), 7225.50.90 (TMBP)
-- Jika PI Perubahan: set vpti_ls = null, JANGAN analisa VPTI/LS.
+- ANALISIS VPTI/LS (HANYA untuk PI BARU, baik API-P maupun API-U):
+  * Jika PI Perubahan: set vpti_ls = null, JANGAN analisa VPTI/LS.
+  * Jika PI baru (bukan perubahan), WAJIB analisa VPTI/LS untuk API-P DAN API-U.
+  * Periksa pengecualian berikut:
+    - Impor ke KPBPB, KEK, atau TPB
+    - Fasilitas KITE Pembebasan untuk tujuan ekspor
+    - API-P industri otomotif, elektronika, galangan kapal, mould & dies, pesawat terbang, atau alat berat
+    - API-P berstatus AEO atau MITA Kepabeanan
+    - API-P pengguna SKVI USDFS
+    - Penerima fasilitas BMDTP
+    - Kontraktor KKS Migas, Kontrak Karya, atau proyek ketenagalistrikan/kepentingan umum tertentu
+    - Barang HS 7213.91.30, 7213.91.90, 7213.99.90 (C > 0,6%), 7225.50.90 (TMBP)
+  * Pola analisis: tidak hanya melihat nama KBLI, tetapi juga uraian KBLI pada NIB/Pertek, profil/website resmi perusahaan, kegiatan usaha/manufaktur yang dijalankan, dan penjelasan Kemenperin jika tersedia.
+
+- RENCANA DISTRIBUSI (WAJIB untuk API-U, termasuk saat PI Perubahan):
+  * Jika API-U, SELALU cek rencana distribusi meskipun PI Perubahan.
+  * Jika dokumen rencana distribusi ada di PDF yang diupload:
+    1. Penandatangan dokumen rencana distribusi HARUS SAMA dengan penanggung jawab di Pertek. Jika berbeda → Tidak Sesuai.
+    2. Total alokasi per item di rencana distribusi HARUS SAMA ATAU LEBIH KECIL dari jumlah di Pertek. Jika melebihi → Tidak Sesuai.
+    3. Tampilkan daftar mitra/pengguna akhir beserta alamatnya.
+  * Jika API-U tapi dokumen rencana distribusi TIDAK ada di PDF, set rencana_distribusi.ada = false.
+  * Jika bukan API-U, set rencana_distribusi.ada = false.
+
 - Jika data tidak tersedia, tulis "Tidak tersedia"
 - PI draft tanpa nomor/tanggal BUKAN ketidaksesuaian jika is_pi_perubahan = true.
 - INGAT: beda format/urutan penulisan BUKAN berarti Tidak Sesuai. Fokus pada isi/makna.
 - JANGAN cocokkan Negara Muat. Yang dicocokkan HANYA Pelabuhan Tujuan.
 - WAJIB isi rekap_data.
-- KRITIS: daftar_barang HARUS berisi SELURUH item yang ada di dokumen, dari nomor 1 sampai terakhir. Jika dokumen punya 40 item maka daftar_barang HARUS punya 40 entry. Tidak boleh diringkas atau diwakilkan.
-- CEK RENCANA DISTRIBUSI (khusus API-U, jika dokumen rencana distribusi ada):
-  1. Penandatangan dokumen rencana distribusi HARUS SAMA dengan penanggung jawab di Pertek. Jika berbeda → Tidak Sesuai.
-  2. Total alokasi per item di rencana distribusi HARUS SAMA ATAU LEBIH KECIL dari jumlah di Pertek. Jika melebihi → Tidak Sesuai.
-  3. Tampilkan daftar mitra/pengguna akhir beserta alamatnya.
-  Jika bukan API-U atau tidak ada rencana distribusi, set rencana_distribusi.ada = false."""
+- KRITIS: daftar_barang HARUS berisi SELURUH item yang ada di dokumen, dari nomor 1 sampai terakhir. Jika dokumen punya 40 item maka daftar_barang HARUS punya 40 entry. Tidak boleh diringkas atau diwakilkan."""
 
 
 def build_user_prompt(pdf_texts):
@@ -659,7 +668,7 @@ def render_results(result):
             if ket:
                 st.warning(ket)
 
-    # 5. VPTI/LS — hanya tampilkan jika BUKAN PI Perubahan
+    # 5. VPTI/LS — hanya untuk PI baru (baik API-P maupun API-U)
     vpti_data = result.get("vpti_ls") or {}
     if vpti_data and not is_perubahan:
         with st.expander("5. Analisis VPTI/LS", expanded=False):
