@@ -426,11 +426,13 @@ PENTING:
 
 - RENCANA DISTRIBUSI (WAJIB untuk API-U, termasuk saat PI Perubahan):
   * Jika API-U, SELALU cek rencana distribusi meskipun PI Perubahan.
-  * Jika dokumen rencana distribusi ada di PDF yang diupload:
-    1. Penandatangan dokumen rencana distribusi HARUS SAMA dengan penanggung jawab di Pertek. Jika berbeda → Tidak Sesuai.
-    2. Total alokasi per item di rencana distribusi HARUS SAMA ATAU LEBIH KECIL dari jumlah di Pertek. Jika melebihi → Tidak Sesuai.
-    3. Tampilkan daftar mitra/pengguna akhir beserta alamatnya.
-  * Jika API-U tapi dokumen rencana distribusi TIDAK ada di PDF, set rencana_distribusi.ada = false.
+  * CARA MENDETEKSI: Cari di SEMUA halaman PDF yang diupload. Dokumen rencana distribusi biasanya berupa tabel/halaman terpisah dengan judul "RENCANA DISTRIBUSI" atau "Rencana Distribusi Tahun ..." yang berisi tabel alokasi barang ke mitra/pengguna akhir. Bisa berada di file PDF mana saja (bukan hanya di PI atau Pertek). BACA SEMUA HALAMAN dengan teliti.
+  * Jika ditemukan dokumen rencana distribusi di salah satu PDF:
+    1. Set rencana_distribusi.ada = true
+    2. Penandatangan dokumen rencana distribusi HARUS SAMA dengan penanggung jawab di Pertek. Jika berbeda → Tidak Sesuai.
+    3. Total alokasi per item di rencana distribusi HARUS SAMA ATAU LEBIH KECIL dari jumlah di Pertek. Jika melebihi → Tidak Sesuai.
+    4. Tampilkan daftar mitra/pengguna akhir beserta alamatnya.
+  * HANYA set rencana_distribusi.ada = false jika benar-benar TIDAK ADA dokumen rencana distribusi di seluruh PDF yang diupload.
   * Jika bukan API-U, set rencana_distribusi.ada = false.
 
 - Jika data tidak tersedia, tulis "Tidak tersedia"
