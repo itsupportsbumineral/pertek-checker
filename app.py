@@ -532,6 +532,73 @@ def analyze_documents(api_key, pdf_texts):
 
 
 # ============================================================
+# POST-PROCESSING: FALLBACK DARI TEKS PDF
+# ============================================================
+import re
+
+
+def _find_rencana_distribusi_in_texts(pdf_texts):
+    """Cari dokumen rencana distribusi di semua PDF text."""
+    for item in pdf_texts:
+        text_lower = item["text"].lower()
+        if "rencana distribusi" in text_lower:
+            return item["text"]
+    return None
+
+
+def _extract_penandatangan_from_text(text):
+    """Cari nama penandatangan di dokumen rencana distribusi.
+    Biasanya format: (Nama Orang) diikuti jabatan seperti Direktur."""
+    # Cari pola (Nama Orang) yang umum di area tanda tangan
+    patterns = [
+        r'\(([A-Z][a-zA-Z\s\.]+)\)\s*\n?\s*(?:Direktur|Director|Pimpinan|Manager)',
+        r'\(([A-Z][a-zA-Z\s\.]+)\)\s*$',
+        r'(?:Direktur|Director|Pimpinan)\s*[,:]?\s*\n?\s*([A-Z][a-zA-Z\s\.]+)',
+        r'(?:TTD|Ttd|ttd)\s*[,:]?\s*\n?\s*([A-Z][a-zA-Z\s\.]+)',
+    ]
+    for pattern in patterns:
+        matches = re.findall(pattern, text, re.MULTILINE | re.IGNORECASE)
+        if matches:
+            name = matches[-1].strip()
+            if len(name) > 3 and len(name) < 50:
+                return name
+    return None
+
+
+def postprocess_result(result, pdf_texts):
+    """Perbaiki hasil AI dengan fallback dari teks PDF langsung."""
+    info = result.get("info", {})
+    jenis_api = info.get("jenis_api", "")
+    dist = result.get("rencana_distribusi") or {}
+
+    # Fallback 1: Rencana distribusi ada di PDF tapi AI bilang tidak ada
+    if "API-U" in str(jenis_api).upper():
+        rd_text = _find_rencana_distribusi_in_texts(pdf_texts)
+        if rd_text and not dist.get("ada"):
+            dist["ada"] = True
+            dist.setdefault("status", "Perlu diperiksa manual")
+            dist.setdefault("keterangan", "Dokumen rencana distribusi ditemukan di PDF tapi AI gagal menganalisis. Periksa manual.")
+            dist.setdefault("alokasi", [])
+            dist.setdefault("mitra_pengguna_akhir", [])
+            result["rencana_distribusi"] = dist
+
+        # Fallback 2: Penandatangan "Tidak tersedia" tapi ada di teks
+        if dist.get("ada"):
+            penandatangan = dist.get("penandatangan_distribusi", "")
+            if not penandatangan or penandatangan.lower() in ("tidak tersedia", "-", ""):
+                if rd_text:
+                    found_name = _extract_penandatangan_from_text(rd_text)
+                    if found_name:
+                        dist["penandatangan_distribusi"] = found_name
+                        # Re-check kesesuaian dengan penanggung jawab pertek
+                        pj_pertek = dist.get("penanggung_jawab_pertek", "")
+                        if pj_pertek and pj_pertek.lower() not in ("tidak tersedia", "-", ""):
+                            dist["penandatangan_sesuai"] = found_name.lower().strip() == pj_pertek.lower().strip()
+
+    return result
+
+
+# ============================================================
 # RENDER RESULTS
 # ============================================================
 def status_badge(status):
@@ -1070,6 +1137,7 @@ with tab_analisis:
             with st.spinner("Menganalisis dokumen..."):
                 try:
                     result = analyze_documents(api_key, pdf_texts)
+                    result = postprocess_result(result, pdf_texts)
                     st.session_state["analysis_result"] = result
                     if save_to_sheets(result):
                         st.toast("Data tersimpan ke rekap", icon="✅")
