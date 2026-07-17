@@ -429,9 +429,10 @@ PENTING:
   * CARA MENDETEKSI: Cari di SEMUA halaman PDF yang diupload. Dokumen rencana distribusi biasanya berupa tabel/halaman terpisah dengan judul "RENCANA DISTRIBUSI" atau "Rencana Distribusi Tahun ..." yang berisi tabel alokasi barang ke mitra/pengguna akhir. Bisa berada di file PDF mana saja (bukan hanya di PI atau Pertek). BACA SEMUA HALAMAN dengan teliti.
   * Jika ditemukan dokumen rencana distribusi di salah satu PDF:
     1. Set rencana_distribusi.ada = true
-    2. Penandatangan dokumen rencana distribusi HARUS SAMA dengan penanggung jawab di Pertek. Jika berbeda → Tidak Sesuai.
-    3. Total alokasi per item di rencana distribusi HARUS SAMA ATAU LEBIH KECIL dari jumlah di Pertek. Jika melebihi → Tidak Sesuai.
-    4. Tampilkan daftar mitra/pengguna akhir beserta alamatnya.
+    2. CARI PENANDATANGAN: Nama penandatangan rencana distribusi biasanya ada di BAGIAN BAWAH dokumen, di bawah tanda tangan/cap/meterai. Formatnya biasanya "(Nama Orang)" diikuti jabatan seperti "Direktur". WAJIB isi penandatangan_distribusi dengan nama yang ditemukan, JANGAN tulis "Tidak tersedia" jika ada nama di area tanda tangan.
+    3. Penandatangan dokumen rencana distribusi HARUS SAMA dengan penanggung jawab di Pertek. Bandingkan nama (abaikan perbedaan huruf besar/kecil). Jika berbeda → Tidak Sesuai.
+    4. Total alokasi per item di rencana distribusi HARUS SAMA ATAU LEBIH KECIL dari jumlah di Pertek. Jika melebihi → Tidak Sesuai.
+    5. Tampilkan daftar mitra/pengguna akhir beserta alamatnya.
   * HANYA set rencana_distribusi.ada = false jika benar-benar TIDAK ADA dokumen rencana distribusi di seluruh PDF yang diupload.
   * Jika bukan API-U, set rencana_distribusi.ada = false.
 
