@@ -376,8 +376,8 @@ Struktur JSON:
 
   "rencana_distribusi": {
     "ada": true atau false,
-    "penandatangan_distribusi": "nama penandatangan dokumen rencana distribusi",
-    "penanggung_jawab_pertek": "nama penanggung jawab di Pertek",
+    "penandatangan_distribusi": "NAMA ORANG yang menandatangani rencana distribusi (bukan nama perusahaan/produk)",
+    "penanggung_jawab_pertek": "NAMA ORANG penanggung jawab di Pertek (bukan nama perusahaan)",
     "penandatangan_sesuai": true atau false,
     "alokasi": [
       {
@@ -429,10 +429,11 @@ PENTING:
   * CARA MENDETEKSI: Cari di SEMUA halaman PDF yang diupload. Dokumen rencana distribusi biasanya berupa tabel/halaman terpisah dengan judul "RENCANA DISTRIBUSI" atau "Rencana Distribusi Tahun ..." yang berisi tabel alokasi barang ke mitra/pengguna akhir. Bisa berada di file PDF mana saja (bukan hanya di PI atau Pertek). BACA SEMUA HALAMAN dengan teliti.
   * Jika ditemukan dokumen rencana distribusi di salah satu PDF:
     1. Set rencana_distribusi.ada = true
-    2. CARI PENANDATANGAN: Nama penandatangan rencana distribusi biasanya ada di BAGIAN BAWAH dokumen, di bawah tanda tangan/cap/meterai. Formatnya biasanya "(Nama Orang)" diikuti jabatan seperti "Direktur". WAJIB isi penandatangan_distribusi dengan nama yang ditemukan, JANGAN tulis "Tidak tersedia" jika ada nama di area tanda tangan.
-    3. Penandatangan dokumen rencana distribusi HARUS SAMA dengan penanggung jawab di Pertek. Bandingkan nama (abaikan perbedaan huruf besar/kecil). Jika berbeda → Tidak Sesuai.
-    4. Total alokasi per item di rencana distribusi HARUS SAMA ATAU LEBIH KECIL dari jumlah di Pertek. Jika melebihi → Tidak Sesuai.
-    5. Tampilkan daftar mitra/pengguna akhir beserta alamatnya.
+    2. CARI PENANDATANGAN: Penandatangan adalah NAMA ORANG (bukan nama perusahaan, bukan nama produk/barang). Biasanya ada di BAGIAN BAWAH dokumen rencana distribusi, di bawah tanda tangan/cap/meterai. Formatnya: "(Nama Orang)" diikuti jabatan seperti "Direktur" atau "Direktur Utama". Contoh benar: "Tee Susanto", "Setia Diarta". Contoh SALAH: "PT. Atamora" (ini nama perusahaan), "CLUTCH HSG" (ini nama produk). WAJIB isi dengan NAMA ORANG, JANGAN nama perusahaan/produk.
+    3. PENANGGUNG JAWAB PERTEK: Cari di dokumen Pertek bagian "Penanggung Jawab" atau "Penanggungjawab". Ini juga NAMA ORANG, bukan nama perusahaan. Biasanya tercantum di halaman awal Pertek.
+    4. Bandingkan penandatangan distribusi dengan penanggung jawab Pertek. Jika NAMA ORANG-nya berbeda → Tidak Sesuai.
+    5. Total alokasi per item di rencana distribusi HARUS SAMA ATAU LEBIH KECIL dari jumlah di Pertek. Jika melebihi → Tidak Sesuai.
+    6. Tampilkan daftar mitra/pengguna akhir beserta alamatnya.
   * HANYA set rencana_distribusi.ada = false jika benar-benar TIDAK ADA dokumen rencana distribusi di seluruh PDF yang diupload.
   * Jika bukan API-U, set rencana_distribusi.ada = false.
 
@@ -546,22 +547,43 @@ def _find_rencana_distribusi_in_texts(pdf_texts):
     return None
 
 
+def _is_person_name(name):
+    """Cek apakah string kemungkinan nama orang (bukan perusahaan/produk)."""
+    name_upper = name.upper().strip()
+    # Bukan nama orang jika mengandung kata-kata ini
+    company_keywords = ["PT", "PT.", "CV", "CV.", "UD", "UD.", "CORP", "INC", "LTD",
+                        "INDUSTRI", "MAKMUR", "SENTOSA", "JAYA", "TEHNIK", "TEKNIK",
+                        "STEEL", "IRON", "METAL", "COIL", "WIRE", "PIPE", "SHEET",
+                        "CLUTCH", "BEARING", "BOLT", "NUT", "SPRING", "HSG"]
+    for kw in company_keywords:
+        if kw in name_upper.split():
+            return False
+    # Nama orang biasanya 2-4 kata, tiap kata diawali huruf besar
+    words = name.strip().split()
+    if len(words) < 1 or len(words) > 5:
+        return False
+    return True
+
+
 def _extract_penandatangan_from_text(text):
-    """Cari nama penandatangan di dokumen rencana distribusi.
+    """Cari nama penandatangan (ORANG) di dokumen rencana distribusi.
     Biasanya format: (Nama Orang) diikuti jabatan seperti Direktur."""
-    # Cari pola (Nama Orang) yang umum di area tanda tangan
     patterns = [
-        r'\(([A-Z][a-zA-Z\s\.]+)\)\s*\n?\s*(?:Direktur|Director|Pimpinan|Manager)',
+        # (Nama Orang)\nDirektur
+        r'\(([A-Z][a-zA-Z\s\.]+)\)\s*\n?\s*(?:Direktur|Director|Pimpinan|Manager|Komisaris)',
+        # Direktur\n\nNama Orang  atau  Direktur,\nNama Orang
+        r'(?:Direktur|Director|Pimpinan|Direktur Utama)\s*[,:]?\s*\n\s*\n?\s*([A-Z][a-zA-Z\s\.]+)',
+        # (Nama Orang) di akhir baris
         r'\(([A-Z][a-zA-Z\s\.]+)\)\s*$',
-        r'(?:Direktur|Director|Pimpinan)\s*[,:]?\s*\n?\s*([A-Z][a-zA-Z\s\.]+)',
-        r'(?:TTD|Ttd|ttd)\s*[,:]?\s*\n?\s*([A-Z][a-zA-Z\s\.]+)',
     ]
     for pattern in patterns:
         matches = re.findall(pattern, text, re.MULTILINE | re.IGNORECASE)
         if matches:
-            name = matches[-1].strip()
-            if len(name) > 3 and len(name) < 50:
-                return name
+            # Cari dari bawah ke atas (tanda tangan biasanya di bawah)
+            for name in reversed(matches):
+                name = name.strip()
+                if len(name) > 3 and len(name) < 50 and _is_person_name(name):
+                    return name
     return None
 
 
@@ -582,18 +604,26 @@ def postprocess_result(result, pdf_texts):
             dist.setdefault("mitra_pengguna_akhir", [])
             result["rencana_distribusi"] = dist
 
-        # Fallback 2: Penandatangan "Tidak tersedia" tapi ada di teks
+        # Fallback 2: Validasi penandatangan — harus nama orang, bukan perusahaan/produk
         if dist.get("ada"):
             penandatangan = dist.get("penandatangan_distribusi", "")
-            if not penandatangan or penandatangan.lower() in ("tidak tersedia", "-", ""):
-                if rd_text:
-                    found_name = _extract_penandatangan_from_text(rd_text)
-                    if found_name:
-                        dist["penandatangan_distribusi"] = found_name
-                        # Re-check kesesuaian dengan penanggung jawab pertek
-                        pj_pertek = dist.get("penanggung_jawab_pertek", "")
-                        if pj_pertek and pj_pertek.lower() not in ("tidak tersedia", "-", ""):
-                            dist["penandatangan_sesuai"] = found_name.lower().strip() == pj_pertek.lower().strip()
+            needs_fix = (
+                not penandatangan
+                or penandatangan.lower() in ("tidak tersedia", "-", "")
+                or not _is_person_name(penandatangan)
+            )
+            if needs_fix and rd_text:
+                found_name = _extract_penandatangan_from_text(rd_text)
+                if found_name:
+                    dist["penandatangan_distribusi"] = found_name
+                    pj_pertek = dist.get("penanggung_jawab_pertek", "")
+                    if pj_pertek and pj_pertek.lower() not in ("tidak tersedia", "-", ""):
+                        dist["penandatangan_sesuai"] = found_name.lower().strip() == pj_pertek.lower().strip()
+
+            # Validasi penanggung_jawab_pertek juga harus nama orang
+            pj = dist.get("penanggung_jawab_pertek", "")
+            if pj and not _is_person_name(pj):
+                dist["penanggung_jawab_pertek"] = "Tidak tersedia"
 
     return result
 
