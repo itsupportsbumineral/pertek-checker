@@ -607,23 +607,37 @@ def postprocess_result(result, pdf_texts):
         # Fallback 2: Validasi penandatangan — harus nama orang, bukan perusahaan/produk
         if dist.get("ada"):
             penandatangan = dist.get("penandatangan_distribusi", "")
-            needs_fix = (
-                not penandatangan
-                or penandatangan.lower() in ("tidak tersedia", "-", "")
-                or not _is_person_name(penandatangan)
+            penandatangan_valid = (
+                penandatangan
+                and penandatangan.lower() not in ("tidak tersedia", "-", "")
+                and _is_person_name(penandatangan)
             )
-            if needs_fix and rd_text:
-                found_name = _extract_penandatangan_from_text(rd_text)
+
+            if not penandatangan_valid:
+                # Coba cari dari teks PDF
+                found_name = None
+                if rd_text:
+                    found_name = _extract_penandatangan_from_text(rd_text)
+
                 if found_name:
                     dist["penandatangan_distribusi"] = found_name
-                    pj_pertek = dist.get("penanggung_jawab_pertek", "")
-                    if pj_pertek and pj_pertek.lower() not in ("tidak tersedia", "-", ""):
-                        dist["penandatangan_sesuai"] = found_name.lower().strip() == pj_pertek.lower().strip()
+                    penandatangan_valid = True
+                else:
+                    # Nama salah (perusahaan/produk) atau tidak ditemukan → ganti pesan jelas
+                    dist["penandatangan_distribusi"] = "Periksa manual di dokumen rencana distribusi"
+
+            # Re-check kesesuaian
+            if penandatangan_valid:
+                pj_pertek = dist.get("penanggung_jawab_pertek", "")
+                if pj_pertek and pj_pertek.lower() not in ("tidak tersedia", "-", ""):
+                    dist["penandatangan_sesuai"] = (
+                        dist["penandatangan_distribusi"].lower().strip() == pj_pertek.lower().strip()
+                    )
 
             # Validasi penanggung_jawab_pertek juga harus nama orang
             pj = dist.get("penanggung_jawab_pertek", "")
-            if pj and not _is_person_name(pj):
-                dist["penanggung_jawab_pertek"] = "Tidak tersedia"
+            if pj and pj.lower() not in ("tidak tersedia", "-", "") and not _is_person_name(pj):
+                dist["penanggung_jawab_pertek"] = "Periksa manual di dokumen Pertek"
 
     return result
 
@@ -738,9 +752,22 @@ def render_results(result):
             penandatangan = dist_data.get("penandatangan_distribusi", "-")
             pj_pertek = dist_data.get("penanggung_jawab_pertek", "-")
             tanda_sesuai = dist_data.get("penandatangan_sesuai", True)
-            tanda_badge = '<span style="color:#166534;font-weight:600;">Sesuai</span>' if tanda_sesuai else '<span style="color:#991b1b;font-weight:600;">Tidak Sesuai ⚠️</span>'
+
+            # Cek apakah perlu manual review
+            perlu_manual = "periksa manual" in penandatangan.lower() or "periksa manual" in pj_pertek.lower()
+
+            if perlu_manual:
+                tanda_badge = '<span style="color:#b45309;font-weight:600;">Periksa Manual</span>'
+            elif tanda_sesuai:
+                tanda_badge = '<span style="color:#166534;font-weight:600;">Sesuai</span>'
+            else:
+                tanda_badge = '<span style="color:#991b1b;font-weight:600;">Tidak Sesuai ⚠️</span>'
+
             st.markdown(f"**Penandatangan Distribusi:** {penandatangan}")
             st.markdown(f"**Penanggung Jawab Pertek:** {pj_pertek} — {tanda_badge}", unsafe_allow_html=True)
+
+            if perlu_manual:
+                st.warning("Nama penandatangan tidak dapat dideteksi otomatis. Silakan periksa dokumen rencana distribusi dan Pertek secara manual.")
 
             # Alokasi
             alokasi = dist_data.get("alokasi", [])
