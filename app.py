@@ -251,39 +251,16 @@ def extract_pdf_text(uploaded_file, max_chars=150000, max_pages=500):
                     break
 
                 page = pdf.pages[i]
-
-                # Cek rotasi halaman dan coba perbaiki
-                rotation = page.page.get("/Rotate", 0) or 0
-                if rotation != 0:
-                    # Halaman dirotasi — coba extract dengan crop yang disesuaikan
-                    try:
-                        corrected_page = page.rotate(-rotation)
-                        page_text = corrected_page.extract_text()
-                    except Exception:
-                        page_text = page.extract_text()
-                else:
-                    page_text = page.extract_text()
-
-                # Jika masih kosong, coba extract tanpa koreksi rotasi
-                if not page_text and rotation != 0:
-                    page_text = page.extract_text()
-
+                page_text = page.extract_text()
                 if page_text:
-                    rot_note = f" [rotasi {rotation}°]" if rotation != 0 else ""
-                    chunk = f"--- Halaman {i+1}/{total_pages}{rot_note} ---\n{page_text}\n\n"
+                    chunk = f"--- Halaman {i+1}/{total_pages} ---\n{page_text}\n\n"
                     parts.append(chunk)
                     char_count += len(chunk)
                 else:
                     # Hanya extract tabel jika tidak ada teks (hindari duplikat)
                     tables = page.extract_tables()
-                    if not tables and rotation != 0:
-                        try:
-                            tables = page.rotate(-rotation).extract_tables()
-                        except Exception:
-                            pass
                     if tables:
-                        rot_note = f" [rotasi {rotation}°]" if rotation != 0 else ""
-                        parts.append(f"--- Halaman {i+1}/{total_pages}{rot_note} ---\n")
+                        parts.append(f"--- Halaman {i+1}/{total_pages} ---\n")
                         for table in tables:
                             for row in table:
                                 if row:
