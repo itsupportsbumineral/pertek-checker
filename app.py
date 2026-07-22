@@ -8,7 +8,9 @@ import time
 import requests
 import gspread
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+WIB = timezone(timedelta(hours=7))
 from google.oauth2.service_account import Credentials
 
 # ============================================================
@@ -193,7 +195,7 @@ def save_to_sheets(result):
         kesimpulan = result.get("kesimpulan", {})
 
         row = [
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            datetime.now(WIB).strftime("%Y-%m-%d %H:%M:%S"),
             info.get("nomor_pi", ""),
             info.get("tanggal_pi", ""),
             info.get("nomor_pertek", ""),
@@ -320,7 +322,10 @@ LANGKAH 2: SPESIFIKASI BARANG (ITEM PER ITEM)
   b) Uraian/nama komoditi (bandingkan makna, bukan format)
   c) Spesifikasi teknis (grade, ukuran, standar, ketebalan, dll)
   d) Jumlah dan satuan (angka HARUS sama persis)
-- Buat ringkasan keseluruhan untuk: hs_code, uraian_barang, spesifikasi_teknis, jumlah_satuan, pelabuhan_tujuan.
+- Buat ringkasan keseluruhan untuk: hs_code, uraian_barang, spesifikasi_teknis, jumlah_satuan, negara_asal, negara_muat, pelabuhan_tujuan.
+- Negara asal: bandingkan negara asal barang antara PI dan Pertek.
+- Negara muat: catat negara muat yang tercantum di PI.
+- Pelabuhan tujuan: bandingkan pelabuhan tujuan antara PI dan Pertek.
 
 LANGKAH 3: DATA PI VS PERTEK
 - Bandingkan: Nomor Pertek yang tercantum di PI vs nomor Pertek asli.
@@ -417,6 +422,8 @@ LANGKAH 6: KESIMPULAN
       "uraian_barang": {"status": "Sesuai", "keterangan": ""},
       "spesifikasi_teknis": {"status": "Sesuai", "keterangan": ""},
       "jumlah_satuan": {"status": "Sesuai", "keterangan": "jika Tidak Sesuai: sebutkan HS mana dan angkanya"},
+      "negara_asal": {"status": "Sesuai", "keterangan": "negara asal di PI vs Pertek"},
+      "negara_muat": {"status": "Sesuai", "keterangan": "negara muat di PI"},
       "pelabuhan_tujuan": {"status": "Sesuai", "keterangan": ""}
     }
   },
@@ -443,7 +450,9 @@ LANGKAH 6: KESIMPULAN
   "rencana_distribusi": {
     "ada": true atau false,
     "penandatangan_distribusi": "NAMA ORANG penandatangan (bukan perusahaan/produk)",
+    "jabatan_penandatangan": "jabatan penandatangan (misal: Direktur, Direktur Utama)",
     "penanggung_jawab_pertek": "NAMA ORANG penanggung jawab di Pertek",
+    "jabatan_pj_pertek": "jabatan penanggung jawab Pertek",
     "penandatangan_sesuai": true atau false,
     "alokasi": [
       {
@@ -694,16 +703,33 @@ def render_results(result):
     info = result.get("info", {})
     is_perubahan = info.get("is_pi_perubahan", False)
 
-    # Info bar
+    # Info card
     pi_label = "PI (Draft)" if is_perubahan and "Draft" in str(info.get("nomor_pi", "")) else "PI"
-    st.markdown(f"""<div class="info-bar">
-        <strong>{pi_label}:</strong> {info.get('nomor_pi', '-')} ({info.get('tanggal_pi', '-')})
-        &nbsp;&nbsp;|&nbsp;&nbsp;
-        <strong>Pertek:</strong> {info.get('nomor_pertek', '-')} ({info.get('tanggal_pertek', '-')})
-        &nbsp;&nbsp;|&nbsp;&nbsp;
-        <strong>Jenis:</strong> {info.get('jenis_api', '-')}
-        {' &nbsp;&nbsp;|&nbsp;&nbsp; <strong style="color:#b45309;">PI Perubahan</strong>' if is_perubahan else ''}
-    </div>""", unsafe_allow_html=True)
+    jenis_api = info.get("jenis_api", "-")
+    perubahan_badge = '<span style="display:inline-block;background:#fef3c7;color:#92400e;padding:2px 10px;border-radius:12px;font-size:0.8rem;font-weight:600;margin-left:8px;">📝 PI Perubahan</span>' if is_perubahan else ''
+    jenis_color = "#7c3aed" if "API-U" in str(jenis_api) else "#2563eb"
+
+    info_html = f'''<div style="background:linear-gradient(135deg,#fdf2f8 0%,#f3e8ff 100%);border:1px solid #e9d5ff;border-radius:14px;padding:18px 22px;margin:0.5rem 0 1.2rem 0;">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+    <span style="font-size:1.1rem;font-weight:700;color:#7c3a6b;">📋 Información del Documento</span>{perubahan_badge}
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;">
+    <div style="background:white;border-radius:10px;padding:10px 14px;border:1px solid #f3e0ee;">
+      <div style="font-size:0.72rem;text-transform:uppercase;color:#9d4c7e;font-weight:600;letter-spacing:0.5px;">📄 {pi_label}</div>
+      <div style="font-size:0.92rem;font-weight:600;color:#1e293b;margin-top:2px;">{info.get("nomor_pi", "-")}</div>
+      <div style="font-size:0.8rem;color:#64748b;">📅 {info.get("tanggal_pi", "-")}</div>
+    </div>
+    <div style="background:white;border-radius:10px;padding:10px 14px;border:1px solid #f3e0ee;">
+      <div style="font-size:0.72rem;text-transform:uppercase;color:#9d4c7e;font-weight:600;letter-spacing:0.5px;">📑 Pertek</div>
+      <div style="font-size:0.92rem;font-weight:600;color:#1e293b;margin-top:2px;">{info.get("nomor_pertek", "-")}</div>
+      <div style="font-size:0.8rem;color:#64748b;">📅 {info.get("tanggal_pertek", "-")}</div>
+    </div>
+  </div>
+  <div style="margin-top:10px;display:flex;gap:10px;">
+    <span style="display:inline-block;background:white;color:{jenis_color};padding:4px 14px;border-radius:20px;font-size:0.82rem;font-weight:600;border:1px solid {jenis_color}30;">🏷️ {jenis_api}</span>
+  </div>
+</div>'''
+    st.markdown(info_html, unsafe_allow_html=True)
 
     # 1. Identitas Perusahaan
     id_data = result.get("identitas_perusahaan", {})
@@ -864,49 +890,127 @@ def render_results(result):
     st.markdown("### 🌟 Conclusión Final")
 
     rows = []
-    rows.append(("Identitas perusahaan", id_data.get("status", "N/A"), ""))
 
+    # 1. Identitas perusahaan
+    id_status = id_data.get("status", "N/A")
+    id_ket = ""
+    if "Tidak" in str(id_status):
+        mismatches = [i.get("aspek", "") for i in id_data.get("items", []) if "Tidak" in str(i.get("status", ""))]
+        if mismatches:
+            id_ket = f"Perbedaan pada: {', '.join(mismatches)}"
+    else:
+        id_ket = "Nama, NIB, NPWP, dan Alamat sesuai antara PI dan Pertek"
+    rows.append(("Identitas perusahaan", id_status, id_ket))
+
+    # 2. Penandatangan Rencana Distribusi
+    if dist_data.get("ada"):
+        penandatangan = dist_data.get("penandatangan_distribusi", "Tidak tersedia")
+        jabatan_pt = dist_data.get("jabatan_penandatangan", "")
+        pj_pertek = dist_data.get("penanggung_jawab_pertek", "Tidak tersedia")
+        jabatan_pj = dist_data.get("jabatan_pj_pertek", "")
+        pt_sesuai = dist_data.get("penandatangan_sesuai", False)
+
+        pt_status = "Sesuai" if pt_sesuai else "Tidak Sesuai"
+        pt_ket_parts = []
+        if penandatangan and penandatangan != "Tidak tersedia":
+            pt_info = penandatangan
+            if jabatan_pt:
+                pt_info += f" ({jabatan_pt})"
+            pt_ket_parts.append(f"Penandatangan: {pt_info}")
+        if pj_pertek and pj_pertek != "Tidak tersedia":
+            pj_info = pj_pertek
+            if jabatan_pj:
+                pj_info += f" ({jabatan_pj})"
+            pt_ket_parts.append(f"PJ Pertek: {pj_info}")
+        pt_ket = "; ".join(pt_ket_parts) if pt_ket_parts else ""
+        rows.append(("Penandatangan Rencana Distribusi", pt_status, pt_ket))
+
+    # 3. Rencana Distribusi
+    if dist_data.get("ada"):
+        rd_status = dist_data.get("status", "N/A")
+        rd_ket = dist_data.get("keterangan", "")
+        if not rd_ket and "Tidak" not in str(rd_status):
+            rd_ket = "Alokasi distribusi sesuai dengan jumlah Pertek"
+        rows.append(("Rencana Distribusi", rd_status, rd_ket))
+
+    # 4. HS Code
     ringkasan = spec_data.get("ringkasan", {})
     for key, label in [
         ("hs_code", "HS Code"),
-        ("uraian_barang", "Uraian barang"),
-        ("spesifikasi_teknis", "Spesifikasi teknis"),
-        ("jumlah_satuan", "Jumlah dan satuan"),
-        ("pelabuhan_tujuan", "Pelabuhan tujuan"),
     ]:
         val = ringkasan.get(key, "N/A")
         if isinstance(val, dict):
-            rows.append((label, val.get("status", "N/A"), val.get("keterangan", "")))
+            ket = val.get("keterangan", "")
+            st_val = val.get("status", "N/A")
+            if not ket and "Tidak" not in str(st_val):
+                ket = "Seluruh HS Code identik antara PI dan Pertek"
+            rows.append((label, st_val, ket))
         else:
             rows.append((label, val, ""))
 
-    rows.append(("Data PI vs Pertek", pi_data.get("status", "N/A"), ""))
+    # 5. Spesifikasi barang
+    spec_status = spec_data.get("status", "N/A")
+    total_items = spec_data.get("total_items", 0)
+    total_ok = spec_data.get("total_sesuai", 0)
+    spec_ket = f"{total_ok}/{total_items} item sesuai" if total_items > 0 else ""
+    for key, label in [
+        ("uraian_barang", "Spesifikasi barang"),
+    ]:
+        val = ringkasan.get(key, "N/A")
+        if isinstance(val, dict):
+            st_val = val.get("status", "N/A")
+            ket = val.get("keterangan", "")
+            if not ket:
+                ket = spec_ket
+            rows.append((label, st_val, ket))
+        else:
+            rows.append((label, val, spec_ket))
 
-    if dist_data.get("ada"):
-        rows.append(("Rencana Distribusi", dist_data.get("status", "N/A"), dist_data.get("keterangan", "")))
+    # 6. Negara asal
+    val = ringkasan.get("negara_asal", "N/A")
+    if isinstance(val, dict):
+        rows.append(("Negara asal", val.get("status", "N/A"), val.get("keterangan", "")))
+    elif val != "N/A":
+        rows.append(("Negara asal", val, ""))
 
+    # 7. Negara muat
+    val = ringkasan.get("negara_muat", "N/A")
+    if isinstance(val, dict):
+        rows.append(("Negara muat", val.get("status", "N/A"), val.get("keterangan", "")))
+    elif val != "N/A":
+        rows.append(("Negara muat", val, ""))
+
+    # 8. Pelabuhan tujuan
+    val = ringkasan.get("pelabuhan_tujuan", "N/A")
+    if isinstance(val, dict):
+        rows.append(("Pelabuhan tujuan", val.get("status", "N/A"), val.get("keterangan", "")))
+    else:
+        rows.append(("Pelabuhan tujuan", val, ""))
+
+    # 9. VPTI/LS
     if vpti_data and not is_perubahan:
         wajib = vpti_data.get("wajib", True)
-        rows.append(("Kewajiban VPTI/LS", "Wajib VPTI/LS" if wajib else "Tidak wajib VPTI/LS", ""))
+        vpti_status = "Wajib VPTI/LS" if wajib else "Tidak wajib VPTI/LS"
+        vpti_ket = vpti_data.get("alasan_singkat", "")
+        rows.append(("VPTI/LS", vpti_status, vpti_ket))
 
     html = '<table class="summary-table">'
-    html += '<tr><th style="width:35%">Aspek Pemeriksaan</th><th>Hasil</th></tr>'
+    html += '<tr><th style="width:30%">Aspek Pemeriksaan</th><th style="width:20%">Hasil</th><th style="width:50%">Keterangan</th></tr>'
 
     for label, status, keterangan in rows:
         if "Sesuai" in str(status) and "Tidak" not in str(status):
-            display = f'&#9989; <strong>Sesuai</strong>'
+            hasil = '&#9989; <strong>Sesuai</strong>'
         elif "Tidak Sesuai" in str(status):
-            display = f'&#10060; <strong>Tidak Sesuai</strong>'
-            if keterangan:
-                display += f'<br><small style="color:#64748b;">{keterangan}</small>'
+            hasil = '&#10060; <strong>Tidak Sesuai</strong>'
         elif "Tidak wajib" in str(status):
-            display = f'&#9989; {status}'
+            hasil = '&#9989; <strong>Tidak Wajib</strong>'
         elif "Wajib" in str(status):
-            display = f'&#9989; {status}'
+            hasil = '&#9888;&#65039; <strong>Wajib</strong>'
         else:
-            display = status
+            hasil = str(status)
 
-        html += f'<tr><td>{label}</td><td>{display}</td></tr>'
+        ket_display = str(keterangan) if keterangan else "-"
+        html += f'<tr><td><strong>{label}</strong></td><td>{hasil}</td><td>{ket_display}</td></tr>'
 
     html += '</table>'
     st.markdown(html, unsafe_allow_html=True)
@@ -954,7 +1058,7 @@ def render_results(result):
 def build_download_text(result, rows):
     lines = []
     lines.append("LAPORAN PENCOCOKAN PI DAN PERTEK")
-    lines.append(f"Tanggal: {datetime.now().strftime('%d %B %Y %H:%M')}")
+    lines.append(f"Tanggal: {datetime.now(WIB).strftime('%d %B %Y %H:%M')}")
     lines.append("=" * 60)
 
     info = result.get("info", {})
@@ -1082,7 +1186,7 @@ def render_rekap_tab():
 
     # Period filter
     period = st.selectbox("🗓️ Período", ["Minggu Ini", "Bulan Ini", "Tahun Ini", "Semua Data"])
-    now = datetime.now()
+    now = datetime.now(WIB)
 
     if period == "Minggu Ini":
         start = now - timedelta(days=now.weekday())
@@ -1262,7 +1366,7 @@ with tab_analisis:
         if "analysis_result" in st.session_state and st.session_state["analysis_result"]:
             result = st.session_state["analysis_result"]
             st.markdown("---")
-            st.markdown(f'<p class="page-info">🕐 Analizado el {datetime.now().strftime("%d/%m/%Y %H:%M")}</p>', unsafe_allow_html=True)
+            st.markdown(f'<p class="page-info">🕐 Analizado el {datetime.now(WIB).strftime("%d/%m/%Y %H:%M")}</p>', unsafe_allow_html=True)
             rows = render_results(result)
 
             st.markdown("---")
@@ -1272,7 +1376,7 @@ with tab_analisis:
                 st.download_button(
                     "📥 Descargar Informe (.txt)",
                     data=report_text,
-                    file_name=f"informe_blossom_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                    file_name=f"informe_blossom_{datetime.now(WIB).strftime('%Y%m%d_%H%M%S')}.txt",
                     mime="text/plain",
                     use_container_width=True,
                 )
@@ -1293,7 +1397,7 @@ with tab_analisis:
             st.download_button(
                 "📥 Descargar Informe (.txt)",
                 data=report_text,
-                file_name=f"informe_blossom_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                file_name=f"informe_blossom_{datetime.now(WIB).strftime('%Y%m%d_%H%M%S')}.txt",
                 mime="text/plain",
                 use_container_width=True,
             )
