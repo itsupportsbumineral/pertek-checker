@@ -1055,108 +1055,200 @@ def render_results(result):
     return rows
 
 
-def build_download_text(result, rows):
-    lines = []
-    lines.append("LAPORAN PENCOCOKAN PI DAN PERTEK")
-    lines.append(f"Tanggal: {datetime.now(WIB).strftime('%d %B %Y %H:%M')}")
-    lines.append("=" * 60)
+def build_download_pdf(result, rows):
+    from fpdf import FPDF
 
+    class PDF(FPDF):
+        def header(self):
+            self.set_font("Helvetica", "B", 16)
+            self.set_text_color(124, 58, 107)
+            self.cell(0, 10, "Blossom - Laporan Analisis", align="C", new_x="LMARGIN", new_y="NEXT")
+            self.set_font("Helvetica", "", 9)
+            self.set_text_color(100, 116, 139)
+            self.cell(0, 5, f"Tanggal: {datetime.now(WIB).strftime('%d/%m/%Y %H:%M WIB')}", align="C", new_x="LMARGIN", new_y="NEXT")
+            self.line(10, self.get_y() + 2, 200, self.get_y() + 2)
+            self.ln(6)
+
+        def footer(self):
+            self.set_y(-15)
+            self.set_font("Helvetica", "I", 8)
+            self.set_text_color(150, 150, 150)
+            self.cell(0, 10, f"Blossom | Hal {self.page_no()}/{{nb}}", align="C")
+
+        def section_title(self, num, title):
+            self.set_font("Helvetica", "B", 11)
+            self.set_fill_color(253, 242, 248)
+            self.set_text_color(124, 58, 107)
+            self.cell(0, 8, f"  {num}. {title}", fill=True, new_x="LMARGIN", new_y="NEXT")
+            self.ln(2)
+
+        def add_row(self, label, value):
+            self.set_font("Helvetica", "B", 9)
+            self.set_text_color(60, 60, 60)
+            self.cell(55, 6, f"  {label}", new_x="END")
+            self.set_font("Helvetica", "", 9)
+            self.set_text_color(30, 30, 30)
+            self.multi_cell(0, 6, str(value))
+
+        def status_icon(self, status):
+            s = str(status)
+            if "Tidak Sesuai" in s:
+                return "[X] Tidak Sesuai"
+            elif "Sesuai" in s:
+                return "[V] Sesuai"
+            return s
+
+    pdf = PDF()
+    pdf.alias_nb_pages()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=20)
+
+    # Info dokumen
     info = result.get("info", {})
-    lines.append(f"PI: {info.get('nomor_pi', '-')} ({info.get('tanggal_pi', '-')})")
-    lines.append(f"Pertek: {info.get('nomor_pertek', '-')} ({info.get('tanggal_pertek', '-')})")
-    lines.append(f"Jenis: {info.get('jenis_api', '-')}")
-    lines.append("")
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.set_fill_color(243, 232, 255)
+    pdf.set_text_color(88, 28, 135)
+    pi_label = "PI (Draft)" if info.get("is_pi_perubahan") else "PI"
+    pdf.cell(0, 7, f"  {pi_label}: {info.get('nomor_pi', '-')}  |  Pertek: {info.get('nomor_pertek', '-')}  |  {info.get('jenis_api', '-')}", fill=True, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 8)
+    pdf.set_text_color(100, 100, 100)
+    pdf.cell(0, 5, f"  Tgl PI: {info.get('tanggal_pi', '-')}  |  Tgl Pertek: {info.get('tanggal_pertek', '-')}", new_x="LMARGIN", new_y="NEXT")
+    if info.get("is_pi_perubahan"):
+        pdf.set_text_color(180, 83, 9)
+        pdf.set_font("Helvetica", "B", 8)
+        pdf.cell(0, 5, "  >> PI Perubahan", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(4)
 
-    lines.append("1. IDENTITAS PERUSAHAAN")
+    # 1. Identitas Perusahaan
+    pdf.section_title(1, "Identitas Perusahaan")
     id_data = result.get("identitas_perusahaan", {})
     for item in id_data.get("items", []):
-        lines.append(f"   {item.get('aspek', '')}: PI={item.get('pi', '')} | Pertek={item.get('pertek', '')} -> {item.get('status', '')}")
-    lines.append("")
+        pdf.add_row(item.get("aspek", ""), f"PI: {item.get('pi', '-')}  |  Pertek: {item.get('pertek', '-')}  ->  {pdf.status_icon(item.get('status', ''))}")
+    pdf.ln(3)
 
+    # 2. Spesifikasi Barang
     spec_data = result.get("spesifikasi_barang", {})
     total = spec_data.get("total_items", 0)
     total_ok = spec_data.get("total_sesuai", 0)
-    lines.append(f"2. SPESIFIKASI BARANG ({total_ok}/{total} sesuai)")
+    pdf.section_title(2, f"Spesifikasi Barang ({total_ok}/{total} sesuai)")
     daftar_barang = spec_data.get("daftar_barang", [])
     if daftar_barang:
+        # Table header
+        pdf.set_font("Helvetica", "B", 7)
+        pdf.set_fill_color(253, 242, 248)
+        pdf.set_text_color(124, 58, 107)
+        col_w = [8, 22, 45, 30, 30, 30, 20]
+        headers = ["No", "HS Code", "Uraian", "Spesifikasi", "Jml PI", "Jml Pertek", "Status"]
+        for i, h in enumerate(headers):
+            pdf.cell(col_w[i], 6, h, border=1, fill=True, align="C")
+        pdf.ln()
+        pdf.set_font("Helvetica", "", 7)
+        pdf.set_text_color(30, 30, 30)
         for item in daftar_barang:
-            status_txt = item.get("status", "")
-            spec_txt = item.get("spesifikasi", "-")
-            line = f"   {item.get('no', '')}. HS {item.get('hs_code', '')} | {item.get('uraian', '')} | Spec: {spec_txt} | PI: {item.get('jumlah_pi', '-')} | Pertek: {item.get('jumlah_pertek', '-')} | {status_txt}"
-            if item.get("perbedaan"):
-                line += f" ({item['perbedaan']})"
-            lines.append(line)
-    else:
-        tidak_sesuai = spec_data.get("items_tidak_sesuai", [])
-        if tidak_sesuai:
-            lines.append("   Item tidak sesuai:")
-            for item in tidak_sesuai:
-                lines.append(f"   - HS {item.get('hs_code', '')}: {item.get('perbedaan', '')}")
-        else:
-            lines.append("   Seluruh item sesuai")
-    lines.append("")
+            vals = [
+                str(item.get("no", "")),
+                str(item.get("hs_code", "")),
+                str(item.get("uraian", ""))[:40],
+                str(item.get("spesifikasi", "-"))[:25],
+                str(item.get("jumlah_pi", "-")),
+                str(item.get("jumlah_pertek", "-")),
+                "V" if "Tidak" not in str(item.get("status", "")) else "X",
+            ]
+            for i, v in enumerate(vals):
+                pdf.cell(col_w[i], 5, v, border=1)
+            pdf.ln()
+    pdf.ln(3)
 
-    lines.append("3. DATA PI VS PERTEK")
+    # 3. Data PI vs Pertek
+    pdf.section_title(3, "Data PI vs Pertek")
     pi_data = result.get("data_pi_vs_pertek", {})
     for item in pi_data.get("items", []):
-        lines.append(f"   {item.get('aspek', '')}: PI={item.get('pi', '')} | Pertek={item.get('pertek', '')} -> {item.get('status', '')}")
-    lines.append("")
+        pdf.add_row(item.get("aspek", ""), f"PI: {item.get('pi', '-')}  |  Pertek: {item.get('pertek', '-')}  ->  {pdf.status_icon(item.get('status', ''))}")
+    pdf.ln(3)
 
+    # 4. Rencana Distribusi
     dist_data = result.get("rencana_distribusi") or {}
     if dist_data.get("ada"):
-        lines.append("4. RENCANA DISTRIBUSI")
-        lines.append(f"   Penandatangan: {dist_data.get('penandatangan_distribusi', '-')}")
-        lines.append(f"   Penanggung Jawab Pertek: {dist_data.get('penanggung_jawab_pertek', '-')}")
-        lines.append(f"   Penandatangan sesuai: {'Ya' if dist_data.get('penandatangan_sesuai') else 'TIDAK'}")
+        pdf.section_title(4, "Rencana Distribusi")
+        pdf.add_row("Penandatangan", dist_data.get("penandatangan_distribusi", "-"))
+        pdf.add_row("PJ Pertek", dist_data.get("penanggung_jawab_pertek", "-"))
+        pdf.add_row("Cocok", "Ya" if dist_data.get("penandatangan_sesuai") else "TIDAK")
         for a in dist_data.get("alokasi", []):
-            lines.append(f"   Alokasi HS {a.get('hs_code', '')}: Distribusi={a.get('jumlah_distribusi', '-')} | Pertek={a.get('jumlah_pertek', '-')} -> {a.get('status', '')}")
-        for m in dist_data.get("mitra_pengguna_akhir", []):
-            lines.append(f"   Mitra: {m.get('nama', '-')} ({m.get('alamat', '-')})")
-        lines.append(f"   Status: {dist_data.get('status', '-')}")
-        ket = dist_data.get("keterangan", "")
-        if ket:
-            lines.append(f"   Keterangan: {ket}")
-        lines.append("")
+            pdf.add_row(f"HS {a.get('hs_code', '')}", f"Distribusi: {a.get('jumlah_distribusi', '-')} | Pertek: {a.get('jumlah_pertek', '-')} -> {pdf.status_icon(a.get('status', ''))}")
+        pdf.ln(3)
 
+    # 5. VPTI/LS
     vpti_data = result.get("vpti_ls")
-    if vpti_data:
-        lines.append("5. ANALISIS VPTI/LS")
-        lines.append(f"   Jenis API: {vpti_data.get('jenis_api', '')}")
-        lines.append(f"   KBLI: {vpti_data.get('kbli', '')} - {vpti_data.get('kbli_deskripsi', '')}")
-        lines.append(f"   Wajib: {'Ya' if vpti_data.get('wajib', True) else 'Tidak'}")
-        lines.append(f"   Alasan: {vpti_data.get('alasan_singkat', '')}")
-        lines.append("")
-    else:
-        lines.append("5. ANALISIS VPTI/LS")
-        lines.append("   (Tidak berlaku - PI Perubahan)")
-        lines.append("")
+    is_perubahan = info.get("is_pi_perubahan", False)
+    if vpti_data and not is_perubahan:
+        pdf.section_title(5, "Analisis VPTI/LS")
+        pdf.add_row("Jenis API", vpti_data.get("jenis_api", "-"))
+        pdf.add_row("KBLI", f"{vpti_data.get('kbli', '-')} - {vpti_data.get('kbli_deskripsi', '')}")
+        pdf.add_row("Wajib", "Ya" if vpti_data.get("wajib", True) else "Tidak")
+        pdf.add_row("Alasan", vpti_data.get("alasan_singkat", "-"))
+        pdf.ln(3)
 
-    lines.append("=" * 60)
-    lines.append("KESIMPULAN AKHIR")
-    lines.append("=" * 60)
+    # Kesimpulan Akhir
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.set_text_color(124, 58, 107)
+    pdf.cell(0, 10, "Kesimpulan Akhir", align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(2)
+
+    # Tabel kesimpulan
+    pdf.set_font("Helvetica", "B", 8)
+    pdf.set_fill_color(253, 242, 248)
+    pdf.set_text_color(124, 58, 107)
+    kol_w = [50, 30, 105]
+    for i, h in enumerate(["Aspek Pemeriksaan", "Hasil", "Keterangan"]):
+        pdf.cell(kol_w[i], 7, h, border=1, fill=True, align="C")
+    pdf.ln()
+    pdf.set_font("Helvetica", "", 8)
+    pdf.set_text_color(30, 30, 30)
     for label, status, keterangan in rows:
-        line = f"  {label}: {status}"
-        if keterangan:
-            line += f" ({keterangan})"
-        lines.append(line)
-    lines.append("")
+        icon = pdf.status_icon(status)
+        pdf.cell(kol_w[0], 6, str(label), border=1)
+        pdf.cell(kol_w[1], 6, icon, border=1, align="C")
+        pdf.cell(kol_w[2], 6, str(keterangan or "-")[:80], border=1)
+        pdf.ln()
+    pdf.ln(5)
 
+    # Status final
     kesimpulan = result.get("kesimpulan", {})
-    lines.append(kesimpulan.get("status", ""))
-    if kesimpulan.get("catatan"):
-        lines.append(f"Catatan: {kesimpulan['catatan']}")
+    status_str = kesimpulan.get("status", "DAPAT DIPROSES")
+    if "TIDAK" in status_str:
+        pdf.set_fill_color(252, 228, 236)
+        pdf.set_text_color(153, 27, 27)
+    else:
+        pdf.set_fill_color(240, 253, 244)
+        pdf.set_text_color(22, 101, 52)
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 10, f"  {status_str}", fill=True, new_x="LMARGIN", new_y="NEXT")
+
+    catatan = kesimpulan.get("catatan", "")
+    if catatan:
+        pdf.set_font("Helvetica", "", 9)
+        pdf.multi_cell(0, 5, f"Catatan: {catatan}")
+
     ketidaksesuaian = kesimpulan.get("ketidaksesuaian", [])
     if ketidaksesuaian:
-        lines.append("Ketidaksesuaian:")
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.set_text_color(153, 27, 27)
+        pdf.cell(0, 7, "Ketidaksesuaian:", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 8)
         for k in ketidaksesuaian:
-            lines.append(f"  - {k}")
+            pdf.cell(0, 5, f"  - {k}", new_x="LMARGIN", new_y="NEXT")
+
     perubahan = kesimpulan.get("perubahan", [])
     if perubahan:
-        lines.append("Perubahan:")
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.set_text_color(22, 101, 52)
+        pdf.cell(0, 7, "Perubahan:", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 8)
         for p in perubahan:
-            lines.append(f"  - {p}")
+            pdf.cell(0, 5, f"  - {p}", new_x="LMARGIN", new_y="NEXT")
 
-    return "\n".join(lines)
+    return pdf.output()
 
 
 # ============================================================
@@ -1370,14 +1462,14 @@ with tab_analisis:
             rows = render_results(result)
 
             st.markdown("---")
-            report_text = build_download_text(result, rows)
+            report_pdf = build_download_pdf(result, rows)
             col_dl, col_new = st.columns([3, 1])
             with col_dl:
                 st.download_button(
-                    "📥 Descargar Informe (.txt)",
-                    data=report_text,
-                    file_name=f"informe_blossom_{datetime.now(WIB).strftime('%Y%m%d_%H%M%S')}.txt",
-                    mime="text/plain",
+                    "📥 Descargar Informe (.pdf)",
+                    data=report_pdf,
+                    file_name=f"laporan_blossom_{datetime.now(WIB).strftime('%Y%m%d_%H%M%S')}.pdf",
+                    mime="application/pdf",
                     use_container_width=True,
                 )
             with col_new:
@@ -1393,12 +1485,12 @@ with tab_analisis:
             st.info("💡 Mostrando el último análisis. Sube nuevos archivos para un nuevo análisis.")
             rows = render_results(result)
             st.markdown("---")
-            report_text = build_download_text(result, rows)
+            report_pdf = build_download_pdf(result, rows)
             st.download_button(
-                "📥 Descargar Informe (.txt)",
-                data=report_text,
-                file_name=f"informe_blossom_{datetime.now(WIB).strftime('%Y%m%d_%H%M%S')}.txt",
-                mime="text/plain",
+                "📥 Descargar Informe (.pdf)",
+                data=report_pdf,
+                file_name=f"laporan_blossom_{datetime.now(WIB).strftime('%Y%m%d_%H%M%S')}.pdf",
+                mime="application/pdf",
                 use_container_width=True,
             )
         else:
