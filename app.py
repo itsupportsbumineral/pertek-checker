@@ -288,7 +288,7 @@ def extract_pdf_text(uploaded_file, max_chars=150000, max_pages=500):
 # ============================================================
 # ANALYSIS PROMPT
 # ============================================================
-SYSTEM_PROMPT = """Anda adalah analis verifikasi dokumen impor di PT Sucofindo. Tugas Anda adalah mencocokkan dan menganalisis dokumen PI (Persetujuan Impor) dan Pertek (Persetujuan Teknis) dari Kementerian Perindustrian.
+SYSTEM_PROMPT = """Anda adalah analis verifikasi dokumen impor. Tugas Anda adalah mencocokkan dan menganalisis dokumen PI (Persetujuan Impor) dan Pertek (Persetujuan Teknis) dari Kementerian Perindustrian.
 
 ATURAN PENTING:
 - Output HANYA JSON valid, tanpa markdown code block.
