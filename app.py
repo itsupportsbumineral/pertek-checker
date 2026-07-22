@@ -15,8 +15,8 @@ from google.oauth2.service_account import Credentials
 # CONFIG
 # ============================================================
 st.set_page_config(
-    page_title="Pertek Checker",
-    page_icon="📋",
+    page_title="Blossom",
+    page_icon="🌸",
     layout="wide",
 )
 
@@ -115,7 +115,7 @@ def check_password():
         return True
 
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
-    st.markdown('<div class="header-card"><h1>Pertek Checker</h1><p>Verifikasi dokumen PI & Pertek</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="header-card"><h1>Blossom</h1><p>Your document buddy</p></div>', unsafe_allow_html=True)
     password = st.text_input("Password", type="password", key="password_input", placeholder="Masukkan password")
     if st.button("Masuk", type="primary", use_container_width=True):
         if password == correct_password:
@@ -1123,8 +1123,8 @@ if not check_password():
 
 # Header
 st.markdown("""<div class="header-card">
-    <h1>Pertek Checker</h1>
-    <p>Upload PDF PI dan Pertek, otomatis dianalisis dan dicocokkan</p>
+    <h1>Blossom</h1>
+    <p>Upload dokumen, biar aku yang cocokkan</p>
 </div>""", unsafe_allow_html=True)
 
 tab_analisis, tab_rekap = st.tabs(["Analisis", "Rekap Data"])
@@ -1282,4 +1282,4 @@ with tab_rekap:
 
 # Footer
 st.markdown("---")
-st.caption("Pertek Checker v5.0 | Data diproses secara aman.")
+st.caption("Blossom v5.0 | Made with love")
