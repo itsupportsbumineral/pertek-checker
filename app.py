@@ -116,13 +116,13 @@ def check_password():
 
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
     st.markdown('<div class="header-card"><h1>🌸 Blossom</h1><p>Make your life easier ✨</p></div>', unsafe_allow_html=True)
-    password = st.text_input("Password", type="password", key="password_input", placeholder="Masukkan password")
-    if st.button("Masuk", type="primary", use_container_width=True):
+    password = st.text_input("🔒 Contraseña", type="password", key="password_input", placeholder="Ingresa tu contraseña")
+    if st.button("🌸 Entrar", type="primary", use_container_width=True):
         if password == correct_password:
             st.session_state["authenticated"] = True
             st.rerun()
         else:
-            st.error("Password salah.")
+            st.error("😥 Contraseña incorrecta.")
     st.markdown('</div>', unsafe_allow_html=True)
     return False
 
@@ -1039,13 +1039,13 @@ def render_rekap_tab():
 
     df = load_from_sheets()
     if df is None or df.empty:
-        st.info("Belum ada data analisis tersimpan. Data akan muncul setelah analisis pertama.")
+        st.info("🌱 Aún no hay datos. Aparecerán después del primer análisis.")
         return
 
     df["tanggal_analisis"] = pd.to_datetime(df["tanggal_analisis"], errors="coerce")
 
     # Period filter
-    period = st.selectbox("Periode", ["Minggu Ini", "Bulan Ini", "Tahun Ini", "Semua Data"])
+    period = st.selectbox("🗓️ Período", ["Minggu Ini", "Bulan Ini", "Tahun Ini", "Semua Data"])
     now = datetime.now()
 
     if period == "Minggu Ini":
@@ -1061,7 +1061,7 @@ def render_rekap_tab():
     dff = df[mask].copy()
 
     if dff.empty:
-        st.warning("Tidak ada data untuk periode ini.")
+        st.warning("🫧 No hay datos para este período.")
         return
 
     # Summary metrics
@@ -1139,7 +1139,7 @@ with tab_analisis:
         st.session_state["clear_files"] = 0
 
     uploaded_files = st.file_uploader(
-        "Upload file PDF (PI dan Pertek, bisa lebih dari 1)",
+        "📎 Sube tus archivos PDF (PI y Pertek, puedes subir más de uno)",
         type=["pdf"],
         accept_multiple_files=True,
         key=f"pdf_uploader_{st.session_state['clear_files']}",
@@ -1153,13 +1153,13 @@ with tab_analisis:
             total_pages_all += pages
             pdf_texts.append({"name": f.name, "text": txt, "pages": pages})
 
-        file_names = ", ".join([f"{p['name']} ({p['pages']}hal)" for p in pdf_texts])
-        st.markdown(f'<div class="file-count">&#128196; {len(uploaded_files)} file diupload ({total_pages_all} halaman total): {file_names}</div>', unsafe_allow_html=True)
+        file_names = ", ".join([f"{p['name']} ({p['pages']}pg)" for p in pdf_texts])
+        st.markdown(f'<div class="file-count">💐 {len(uploaded_files)} archivos subidos ({total_pages_all} páginas): {file_names}</div>', unsafe_allow_html=True)
 
         large_files = [p for p in pdf_texts if p["pages"] > 500]
         if large_files:
-            names = ", ".join([f"**{p['name']}** ({p['pages']} hal)" for p in large_files])
-            st.warning(f"File besar terdeteksi: {names}. Hanya 500 halaman pertama yang dibaca untuk menjaga performa.")
+            names = ", ".join([f"**{p['name']}** ({p['pages']} pg)" for p in large_files])
+            st.warning(f"🫣 Archivo grande detectado: {names}. Solo se leen las primeras 500 páginas.")
 
         with st.expander("👀 Ver texto extraído del PDF", expanded=False):
             for item in pdf_texts:
@@ -1174,14 +1174,14 @@ with tab_analisis:
         est_output_cost = 0.3 / 1_000_000 * 3000  # estimasi ~3k output tokens, $0.3/1M
         est_total_usd = est_input_cost + est_output_cost
         est_total_idr = est_total_usd * 16500
-        st.caption(f"Estimasi: ~{est_tokens:,} token input | Biaya: ~Rp {est_total_idr:,.0f}")
+        st.caption(f"💰 Estimación: ~{est_tokens:,} tokens | Costo: ~Rp {est_total_idr:,.0f}")
 
         st.markdown("")
         col1, col2 = st.columns([3, 1])
         with col1:
-            analyze_btn = st.button("Analisis & Cocokkan", type="primary", use_container_width=True, disabled=not api_key)
+            analyze_btn = st.button("🌸 Analizar y Comparar", type="primary", use_container_width=True, disabled=not api_key)
         with col2:
-            clear_btn = st.button("Analisis Baru", use_container_width=True)
+            clear_btn = st.button("🔄 Nuevo", use_container_width=True)
 
         if clear_btn:
             st.session_state["clear_files"] += 1
@@ -1189,20 +1189,20 @@ with tab_analisis:
             st.rerun()
 
         if not api_key:
-            st.error("API key belum dikonfigurasi. Hubungi administrator.")
+            st.error("🔑 API key no configurada. Contacta al administrador.")
 
         if analyze_btn and api_key:
-            with st.spinner("Menganalisis dokumen..."):
+            with st.spinner("🌷 Analizando documentos... un momentito 💕"):
                 try:
                     result = analyze_documents(api_key, pdf_texts)
                     result = postprocess_result(result, pdf_texts)
                     st.session_state["analysis_result"] = result
                     if save_to_sheets(result):
-                        st.toast("Data tersimpan ke rekap", icon="✅")
+                        st.toast("Datos guardados 💕", icon="✅")
                     else:
-                        st.toast("Gagal simpan ke rekap (cek konfigurasi Google Sheets)", icon="⚠️")
+                        st.toast("No se pudieron guardar los datos", icon="⚠️")
                 except json.JSONDecodeError:
-                    st.error("Error parsing hasil analisis. Coba klik Analisis lagi.")
+                    st.error("😥 Error al analizar. Intenta de nuevo.")
                 except requests.exceptions.HTTPError as e:
                     sc = e.response.status_code if e.response else 0
                     body = ""
@@ -1211,22 +1211,22 @@ with tab_analisis:
                     except Exception:
                         pass
                     if sc in (401, 403):
-                        st.error(f"API Key tidak valid atau belum diaktifkan. {body}")
+                        st.error(f"🔑 API Key inválida. {body}")
                     elif sc == 429:
-                        st.error("Rate limit tercapai. Tunggu 1 menit lalu coba lagi.")
+                        st.error("⏳ Demasiadas solicitudes. Espera un momento e intenta de nuevo.")
                     elif sc >= 500:
-                        st.error("Server sedang sibuk. Tunggu beberapa detik lalu coba lagi.")
+                        st.error("🌧️ El servidor está ocupado. Intenta en unos segundos.")
                     else:
-                        st.error(f"Terjadi error (kode {sc}). {body}")
+                        st.error(f"😥 Error (código {sc}). {body}")
                 except ValueError as e:
-                    st.error(str(e))
+                    st.error(f"😥 {str(e)}")
                 except Exception as e:
-                    st.error(f"Terjadi error: {str(e)[:200]}")
+                    st.error(f"😥 Error: {str(e)[:200]}")
 
         if "analysis_result" in st.session_state and st.session_state["analysis_result"]:
             result = st.session_state["analysis_result"]
             st.markdown("---")
-            st.markdown(f'<p class="page-info">Dianalisis pada {datetime.now().strftime("%d/%m/%Y %H:%M")}</p>', unsafe_allow_html=True)
+            st.markdown(f'<p class="page-info">🕐 Analizado el {datetime.now().strftime("%d/%m/%Y %H:%M")}</p>', unsafe_allow_html=True)
             rows = render_results(result)
 
             st.markdown("---")
@@ -1234,14 +1234,14 @@ with tab_analisis:
             col_dl, col_new = st.columns([3, 1])
             with col_dl:
                 st.download_button(
-                    "Download Laporan (.txt)",
+                    "📥 Descargar Informe (.txt)",
                     data=report_text,
-                    file_name=f"laporan_pertek_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                    file_name=f"informe_blossom_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
                     mime="text/plain",
                     use_container_width=True,
                 )
             with col_new:
-                if st.button("Analisis Baru", use_container_width=True, key="clear_bottom"):
+                if st.button("🔄 Nuevo", use_container_width=True, key="clear_bottom"):
                     st.session_state["clear_files"] += 1
                     st.session_state.pop("analysis_result", None)
                     st.rerun()
@@ -1250,14 +1250,14 @@ with tab_analisis:
         # Tampilkan hasil terakhir jika ada
         if "analysis_result" in st.session_state and st.session_state["analysis_result"]:
             result = st.session_state["analysis_result"]
-            st.info("Menampilkan hasil analisis terakhir. Upload file baru untuk analisis baru.")
+            st.info("💡 Mostrando el último análisis. Sube nuevos archivos para un nuevo análisis.")
             rows = render_results(result)
             st.markdown("---")
             report_text = build_download_text(result, rows)
             st.download_button(
-                "Download Laporan (.txt)",
+                "📥 Descargar Informe (.txt)",
                 data=report_text,
-                file_name=f"laporan_pertek_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                file_name=f"informe_blossom_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
                 mime="text/plain",
                 use_container_width=True,
             )
@@ -1265,14 +1265,14 @@ with tab_analisis:
             st.markdown("")
             col_a, col_b, col_c = st.columns(3)
             with col_a:
-                st.markdown("**1. Upload**")
-                st.caption("Upload file PDF PI dan Pertek (bisa lebih dari 1 file)")
+                st.markdown("**🌷 Paso 1**")
+                st.caption("Sube tus archivos PDF")
             with col_b:
-                st.markdown("**2. Analisis**")
-                st.caption("Klik tombol Analisis & Cocokkan")
+                st.markdown("**🌸 Paso 2**")
+                st.caption("Haz clic en Analizar y Comparar")
             with col_c:
-                st.markdown("**3. Hasil**")
-            st.caption("Lihat hasil + download laporan")
+                st.markdown("**🌺 Paso 3**")
+                st.caption("Mira los resultados y descarga el informe")
 
 # ──────────────────────────────────────────────
 # TAB 2: REKAP DATA
