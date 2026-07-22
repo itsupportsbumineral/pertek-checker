@@ -513,7 +513,7 @@ def call_gemini(api_key, model, system_prompt, user_prompt):
 
 def analyze_documents(api_key, pdf_texts):
     user_prompt = build_user_prompt(pdf_texts)
-    models = ["gemini-2.5-flash"]
+    models = ["gemini-3.1-flash", "gemini-3.1-flash-lite"]
     last_error = ""
 
     for model in models:
