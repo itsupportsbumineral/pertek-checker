@@ -115,7 +115,7 @@ def check_password():
         return True
 
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
-    st.markdown('<div class="header-card"><h1>Blossom</h1><p>Your document buddy</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="header-card"><h1>🌸 Blossom</h1><p>Make your life easier ✨</p></div>', unsafe_allow_html=True)
     password = st.text_input("Password", type="password", key="password_input", placeholder="Masukkan password")
     if st.button("Masuk", type="primary", use_container_width=True):
         if password == correct_password:
@@ -678,7 +678,7 @@ def render_results(result):
         id_status_label = "Sesuai"
     else:
         id_status_label = id_status
-    with st.expander(f"1. Identitas Perusahaan — {id_status_label}", expanded=False):
+    with st.expander(f"🏢 Identidad de la Empresa — {id_status_label}", expanded=False):
         id_items = id_data.get("items", [])
         if id_items:
             html = '<table class="detail-table">'
@@ -694,7 +694,7 @@ def render_results(result):
     total_ok = spec_data.get("total_sesuai", 0)
     total_bad = spec_data.get("total_tidak_sesuai", 0)
 
-    with st.expander(f"2. Spesifikasi Barang ({total_ok}/{total} sesuai)", expanded=True):
+    with st.expander(f"📦 Especificaciones ({total_ok}/{total} coinciden)", expanded=True):
         # Tampilkan SEMUA item barang
         daftar_barang = spec_data.get("daftar_barang", [])
         if daftar_barang:
@@ -734,7 +734,7 @@ def render_results(result):
         pi_status_label = "Sesuai"
     else:
         pi_status_label = pi_status
-    with st.expander(f"3. Data PI vs Pertek — {pi_status_label}", expanded=False):
+    with st.expander(f"📋 Datos PI vs Pertek — {pi_status_label}", expanded=False):
         pi_items = pi_data.get("items", [])
         if pi_items:
             html = '<table class="detail-table">'
@@ -748,7 +748,7 @@ def render_results(result):
     dist_data = result.get("rencana_distribusi") or {}
     if dist_data.get("ada"):
         dist_status = dist_data.get("status", "N/A")
-        with st.expander(f"4. Rencana Distribusi — {dist_status}", expanded=False):
+        with st.expander(f"🚚 Plan de Distribución — {dist_status}", expanded=False):
             # Penandatangan
             penandatangan = dist_data.get("penandatangan_distribusi", "-")
             pj_pertek = dist_data.get("penanggung_jawab_pertek", "-")
@@ -799,7 +799,7 @@ def render_results(result):
     # 5. VPTI/LS — hanya untuk PI baru (baik API-P maupun API-U)
     vpti_data = result.get("vpti_ls") or {}
     if vpti_data and not is_perubahan:
-        with st.expander("5. Analisis VPTI/LS", expanded=False):
+        with st.expander("🔍 Análisis VPTI/LS", expanded=False):
             vpti_html = '<table class="detail-table">'
             vpti_rows = [
                 ("Jenis API", vpti_data.get("jenis_api", "-")),
@@ -825,7 +825,7 @@ def render_results(result):
     # KESIMPULAN AKHIR TABLE
     # ============================================================
     st.markdown("---")
-    st.markdown("### Kesimpulan Akhir")
+    st.markdown("### 🌟 Conclusión Final")
 
     rows = []
     rows.append(("Identitas perusahaan", id_data.get("status", "N/A"), ""))
@@ -1035,7 +1035,7 @@ def _split_and_count(series):
 
 
 def render_rekap_tab():
-    st.markdown('<div class="section-header">Rekap Data Analisis</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">📊 Resumen de Análisis</div>', unsafe_allow_html=True)
 
     df = load_from_sheets()
     if df is None or df.empty:
@@ -1076,7 +1076,7 @@ def render_rekap_tab():
         st.metric("Tidak Dapat Diproses", int(tidak.sum()))
 
     # HS Codes
-    st.markdown('<div class="section-header">HS Code</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">🏷️ Códigos HS</div>', unsafe_allow_html=True)
     hs_df = _split_and_count(dff["hs_codes"])
     if not hs_df.empty:
         st.dataframe(hs_df, use_container_width=True, hide_index=True)
@@ -1084,7 +1084,7 @@ def render_rekap_tab():
         st.caption("Tidak ada data HS Code.")
 
     # Negara Muat
-    st.markdown('<div class="section-header">Negara Muat</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">🌍 País de Carga</div>', unsafe_allow_html=True)
     neg_df = _split_and_count(dff["negara_muat"])
     if not neg_df.empty:
         st.dataframe(neg_df, use_container_width=True, hide_index=True)
@@ -1092,7 +1092,7 @@ def render_rekap_tab():
         st.caption("Tidak ada data negara muat.")
 
     # Pelabuhan Tujuan
-    st.markdown('<div class="section-header">Pelabuhan Tujuan</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">⚓ Puerto de Destino</div>', unsafe_allow_html=True)
     pel_df = _split_and_count(dff["pelabuhan_tujuan"])
     if not pel_df.empty:
         st.dataframe(pel_df, use_container_width=True, hide_index=True)
@@ -1100,14 +1100,14 @@ def render_rekap_tab():
         st.caption("Tidak ada data pelabuhan.")
 
     # Jenis API breakdown
-    st.markdown('<div class="section-header">Jenis API</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">📄 Tipo de API</div>', unsafe_allow_html=True)
     api_counts = dff["jenis_api"].value_counts().reset_index()
     api_counts.columns = ["Jenis API", "Jumlah"]
     if not api_counts.empty:
         st.dataframe(api_counts, use_container_width=True, hide_index=True)
 
     # Detail table
-    st.markdown('<div class="section-header">Detail Analisis</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">📝 Detalles del Análisis</div>', unsafe_allow_html=True)
     detail_cols = ["tanggal_analisis", "nomor_pi", "nomor_pertek", "nama_perusahaan", "jenis_api", "hs_codes", "negara_muat", "pelabuhan_tujuan", "status"]
     available_cols = [c for c in detail_cols if c in dff.columns]
     detail = dff[available_cols].copy()
@@ -1123,11 +1123,11 @@ if not check_password():
 
 # Header
 st.markdown("""<div class="header-card">
-    <h1>Blossom</h1>
-    <p>Upload dokumen, biar aku yang cocokkan</p>
+    <h1>🌸 Blossom</h1>
+    <p>Make your life easier ✨</p>
 </div>""", unsafe_allow_html=True)
 
-tab_analisis, tab_rekap = st.tabs(["Analisis", "Rekap Data"])
+tab_analisis, tab_rekap = st.tabs(["✨ Análisis", "📊 Resumen"])
 
 # ──────────────────────────────────────────────
 # TAB 1: ANALISIS
@@ -1161,7 +1161,7 @@ with tab_analisis:
             names = ", ".join([f"**{p['name']}** ({p['pages']} hal)" for p in large_files])
             st.warning(f"File besar terdeteksi: {names}. Hanya 500 halaman pertama yang dibaca untuk menjaga performa.")
 
-        with st.expander("Lihat teks yang diekstrak dari PDF", expanded=False):
+        with st.expander("👀 Ver texto extraído del PDF", expanded=False):
             for item in pdf_texts:
                 st.markdown(f"**{item['name']}** ({item['pages']} halaman)")
                 st.text(item["text"][:8000] + ("..." if len(item["text"]) > 8000 else ""))
@@ -1282,4 +1282,4 @@ with tab_rekap:
 
 # Footer
 st.markdown("---")
-st.caption("Blossom v5.0 | Made with love")
+st.caption("🌸 Blossom v5.0 | Hecho con amor 💕")
