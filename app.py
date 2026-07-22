@@ -25,62 +25,63 @@ st.markdown("""
     /* General */
     .block-container { max-width: 1100px; }
 
-    /* Header card */
+    /* Header card — soft rose gradient */
     .header-card {
-        background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%);
-        color: white; padding: 1.5rem 2rem; border-radius: 12px;
+        background: linear-gradient(135deg, #e8a0bf 0%, #c9a0dc 50%, #a0c4e8 100%);
+        color: white; padding: 1.5rem 2rem; border-radius: 16px;
         margin-bottom: 1.5rem;
+        box-shadow: 0 4px 15px rgba(201, 160, 220, 0.3);
     }
     .header-card h1 { color: white !important; margin: 0 0 0.3rem 0; font-size: 1.8rem !important; }
-    .header-card p { color: #b8d4f0; margin: 0; font-size: 0.95rem; }
+    .header-card p { color: #f5e6f0; margin: 0; font-size: 0.95rem; }
 
     /* Info bar */
     .info-bar {
-        background: #f0f7ff; border: 1px solid #c8ddf5; border-radius: 8px;
+        background: #fdf2f8; border: 1px solid #f5c6e0; border-radius: 10px;
         padding: 12px 16px; margin: 0.5rem 0 1rem 0; font-size: 0.9rem;
     }
-    .info-bar strong { color: #1e3a5f; }
+    .info-bar strong { color: #9d4c7e; }
 
     /* Tables */
-    .summary-table { width: 100%; border-collapse: collapse; margin: 1rem 0; border-radius: 8px; overflow: hidden; }
+    .summary-table { width: 100%; border-collapse: collapse; margin: 1rem 0; border-radius: 10px; overflow: hidden; }
     .summary-table th, .summary-table td {
-        border: 1px solid #e2e8f0; padding: 12px 16px; text-align: left;
+        border: 1px solid #f3e0ee; padding: 12px 16px; text-align: left;
     }
-    .summary-table th { background: #f8fafc; font-weight: 600; color: #334155; }
-    .summary-table tr:hover { background: #f8fafc; }
+    .summary-table th { background: #fdf2f8; font-weight: 600; color: #7c3a6b; }
+    .summary-table tr:hover { background: #fef7fb; }
 
     .detail-table { width: 100%; border-collapse: collapse; margin: 0.5rem 0; }
     .detail-table th, .detail-table td {
-        border: 1px solid #e2e8f0; padding: 8px 12px; text-align: left; font-size: 0.88rem;
+        border: 1px solid #f3e0ee; padding: 8px 12px; text-align: left; font-size: 0.88rem;
     }
-    .detail-table th { background: #f1f5f9; font-weight: 600; color: #475569; }
+    .detail-table th { background: #fdf2f8; font-weight: 600; color: #7c3a6b; }
 
     /* Status badges */
     .badge-sesuai {
-        background: #dcfce7; color: #166534; padding: 2px 10px;
+        background: #e8f5e9; color: #2e7d32; padding: 2px 10px;
         border-radius: 12px; font-size: 0.82rem; font-weight: 500;
     }
     .badge-tidak {
-        background: #fee2e2; color: #991b1b; padding: 2px 10px;
+        background: #fce4ec; color: #c62828; padding: 2px 10px;
         border-radius: 12px; font-size: 0.82rem; font-weight: 500;
     }
 
     /* Section headers */
     .section-header {
-        background: #f8fafc; border-left: 4px solid #2d5a8e;
-        padding: 8px 14px; margin: 1.2rem 0 0.8rem 0; border-radius: 0 6px 6px 0;
-        font-weight: 600; color: #1e3a5f;
+        background: #fdf2f8; border-left: 4px solid #d4a0c8;
+        padding: 8px 14px; margin: 1.2rem 0 0.8rem 0; border-radius: 0 8px 8px 0;
+        font-weight: 600; color: #7c3a6b;
     }
 
     /* Conclusion card */
     .conclusion-card {
-        border-radius: 10px; padding: 1.2rem 1.5rem; margin: 1rem 0;
+        border-radius: 12px; padding: 1.2rem 1.5rem; margin: 1rem 0;
     }
     .conclusion-dapat {
-        background: #f0fdf4; border: 2px solid #86efac;
+        background: #f0fdf4; border: 2px solid #a5d6a7;
     }
     .conclusion-tidak {
-        background: #fef2f2; border: 2px solid #fca5a5;
+        background: #fce4ec; border: 2px solid #ef9a9a;
     }
 
     /* Password page */
@@ -90,12 +91,12 @@ st.markdown("""
 
     /* File count */
     .file-count {
-        background: #ecfdf5; color: #065f46; padding: 8px 16px;
-        border-radius: 8px; font-weight: 500; font-size: 0.9rem;
+        background: #f3e5f5; color: #6a1b6d; padding: 8px 16px;
+        border-radius: 10px; font-weight: 500; font-size: 0.9rem;
     }
 
     /* Page info */
-    .page-info { color: #64748b; font-size: 0.82rem; }
+    .page-info { color: #b07aab; font-size: 0.82rem; }
 </style>
 """, unsafe_allow_html=True)
 
