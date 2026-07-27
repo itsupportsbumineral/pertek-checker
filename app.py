@@ -638,6 +638,10 @@ def postprocess_result(result, pdf_texts):
     info = result.get("info", {})
     jenis_api = info.get("jenis_api", "")
     dist = result.get("rencana_distribusi") or {}
+    if isinstance(dist, list):
+        dist = dist[0] if dist else {}
+    if isinstance(info, list):
+        info = info[0] if info else {}
 
     # Fallback 1: Rencana distribusi ada di PDF tapi AI bilang tidak ada
     if "API-U" in str(jenis_api).upper():
@@ -699,8 +703,19 @@ def status_badge(status):
     return status
 
 
+def _ensure_dict(val, default=None):
+    """Pastikan value adalah dict. Jika list, ambil elemen pertama. Jika bukan, return default."""
+    if isinstance(val, dict):
+        return val
+    if isinstance(val, list) and len(val) > 0 and isinstance(val[0], dict):
+        return val[0]
+    return default if default is not None else {}
+
+
 def render_results(result):
-    info = result.get("info", {})
+    if isinstance(result, list):
+        result = result[0] if result else {}
+    info = _ensure_dict(result.get("info", {}))
     is_perubahan = info.get("is_pi_perubahan", False)
 
     # Info card
@@ -732,7 +747,7 @@ def render_results(result):
     st.markdown(info_html, unsafe_allow_html=True)
 
     # 1. Identitas Perusahaan
-    id_data = result.get("identitas_perusahaan", {})
+    id_data = _ensure_dict(result.get("identitas_perusahaan", {}))
     id_status = id_data.get("status", "N/A")
     if "Tidak" in str(id_status):
         id_status_label = "Tidak Sesuai"
@@ -751,7 +766,7 @@ def render_results(result):
             st.markdown(html, unsafe_allow_html=True)
 
     # 2. Spesifikasi Barang
-    spec_data = result.get("spesifikasi_barang", {})
+    spec_data = _ensure_dict(result.get("spesifikasi_barang", {}))
     total = spec_data.get("total_items", 0)
     total_ok = spec_data.get("total_sesuai", 0)
     total_bad = spec_data.get("total_tidak_sesuai", 0)
@@ -788,7 +803,7 @@ def render_results(result):
                 st.success(f"Seluruh {total} item sesuai")
 
     # 3. Data PI vs Pertek
-    pi_data = result.get("data_pi_vs_pertek", {})
+    pi_data = _ensure_dict(result.get("data_pi_vs_pertek", {}))
     pi_status = pi_data.get("status", "N/A")
     if "Tidak" in str(pi_status):
         pi_status_label = "Tidak Sesuai"
@@ -807,7 +822,7 @@ def render_results(result):
             st.markdown(html, unsafe_allow_html=True)
 
     # 4. Rencana Distribusi
-    dist_data = result.get("rencana_distribusi") or {}
+    dist_data = _ensure_dict(result.get("rencana_distribusi") or {})
     if dist_data.get("ada"):
         dist_status = dist_data.get("status", "N/A")
         with st.expander(f"🚚 Plan de Distribución — {dist_status}", expanded=False):
@@ -859,7 +874,7 @@ def render_results(result):
                 st.warning(ket)
 
     # 5. VPTI/LS — hanya untuk PI baru (baik API-P maupun API-U)
-    vpti_data = result.get("vpti_ls") or {}
+    vpti_data = _ensure_dict(result.get("vpti_ls") or {})
     if vpti_data and not is_perubahan:
         with st.expander("🔍 Análisis VPTI/LS", expanded=False):
             vpti_html = '<table class="detail-table">'
@@ -1121,13 +1136,13 @@ def build_download_pdf(result, rows):
 
     # 1. Identitas Perusahaan
     pdf.section_title(1, "Identitas Perusahaan")
-    id_data = result.get("identitas_perusahaan", {})
+    id_data = _ensure_dict(result.get("identitas_perusahaan", {}))
     for item in id_data.get("items", []):
         pdf.add_row(item.get("aspek", ""), f"PI: {item.get('pi', '-')}  |  Pertek: {item.get('pertek', '-')}  ->  {pdf.status_icon(item.get('status', ''))}")
     pdf.ln(3)
 
     # 2. Spesifikasi Barang
-    spec_data = result.get("spesifikasi_barang", {})
+    spec_data = _ensure_dict(result.get("spesifikasi_barang", {}))
     total = spec_data.get("total_items", 0)
     total_ok = spec_data.get("total_sesuai", 0)
     pdf.section_title(2, f"Spesifikasi Barang ({total_ok}/{total} sesuai)")
@@ -1161,13 +1176,13 @@ def build_download_pdf(result, rows):
 
     # 3. Data PI vs Pertek
     pdf.section_title(3, "Data PI vs Pertek")
-    pi_data = result.get("data_pi_vs_pertek", {})
+    pi_data = _ensure_dict(result.get("data_pi_vs_pertek", {}))
     for item in pi_data.get("items", []):
         pdf.add_row(item.get("aspek", ""), f"PI: {item.get('pi', '-')}  |  Pertek: {item.get('pertek', '-')}  ->  {pdf.status_icon(item.get('status', ''))}")
     pdf.ln(3)
 
     # 4. Rencana Distribusi
-    dist_data = result.get("rencana_distribusi") or {}
+    dist_data = _ensure_dict(result.get("rencana_distribusi") or {})
     if dist_data.get("ada"):
         pdf.section_title(4, "Rencana Distribusi")
         pdf.add_row("Penandatangan", dist_data.get("penandatangan_distribusi", "-"))
