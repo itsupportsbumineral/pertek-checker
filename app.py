@@ -367,9 +367,17 @@ LANGKAH 6: KESIMPULAN
 
 === PENANGANAN PI PERUBAHAN ===
 - Set is_pi_perubahan = true
+- Jika ada 3 dokumen (PI lama + PI baru/draft + Pertek):
+  * Identifikasi PI BARU = dokumen yang BELUM ada nomor/tanggal (draft), atau bertuliskan "Perubahan"/"Revisi"
+  * Identifikasi PI LAMA = dokumen PI yang sudah ada nomor dan tanggal resmi
+  * UTAMA: Bandingkan PI BARU (draft) vs PERTEK — ini yang jadi acuan semua analisis Langkah 1-4
+  * SEKUNDER: Bandingkan PI BARU vs PI LAMA untuk mencatat apa saja yang berubah (field "perubahan" di kesimpulan)
+- Untuk field "info":
+  * nomor_pi → tulis "Draft/Belum dinomori" (JANGAN isi nomor PI lama!)
+  * tanggal_pi → tulis "Draft"
+  * nomor_pi_lama → isi nomor PI lama sebagai referensi
 - PI draft tanpa nomor/tanggal adalah HAL NORMAL → BUKAN ketidaksesuaian
-- Bandingkan PI Baru (draft) vs Pertek terbaru
-- PI lama hanya sebagai referensi crosscheck
+- JANGAN bandingkan PI LAMA vs Pertek sebagai analisis utama
 - TETAP lakukan Langkah 1-4 dan 6 (skip Langkah 5)
 
 === REKAP DATA ===
@@ -382,8 +390,9 @@ LANGKAH 6: KESIMPULAN
 
 {
   "info": {
-    "nomor_pi": "... (tulis 'Draft/Belum dinomori' jika belum ada)",
-    "tanggal_pi": "... (tulis 'Draft' jika belum ada)",
+    "nomor_pi": "... (tulis 'Draft/Belum dinomori' jika PI Perubahan — JANGAN isi nomor PI lama)",
+    "tanggal_pi": "... (tulis 'Draft' jika PI Perubahan)",
+    "nomor_pi_lama": "... (isi nomor PI lama jika PI Perubahan, kosong jika bukan)",
     "nomor_pertek": "...",
     "tanggal_pertek": "...",
     "jenis_api": "API-P" atau "API-U",
@@ -740,10 +749,20 @@ def render_results(result):
       <div style="font-size:0.8rem;color:#64748b;">📅 {info.get("tanggal_pertek", "-")}</div>
     </div>
   </div>
-  <div style="margin-top:10px;display:flex;gap:10px;">
+  <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
     <span style="display:inline-block;background:white;color:{jenis_color};padding:4px 14px;border-radius:20px;font-size:0.82rem;font-weight:600;border:1px solid {jenis_color}30;">🏷️ {jenis_api}</span>
-  </div>
-</div>'''
+  </div>'''
+
+    # Tambah info PI lama jika PI Perubahan
+    pi_lama = info.get("nomor_pi_lama", "")
+    if is_perubahan and pi_lama:
+        info_html += f'''
+  <div style="margin-top:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;">
+    <span style="font-size:0.75rem;color:#92400e;font-weight:600;">📌 PI Lama (referensi):</span>
+    <span style="font-size:0.82rem;color:#78350f;"> {pi_lama}</span>
+  </div>'''
+
+    info_html += '\n</div>'
     st.markdown(info_html, unsafe_allow_html=True)
 
     # 1. Identitas Perusahaan
