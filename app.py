@@ -1393,11 +1393,15 @@ with tab_analisis:
     )
 
     if uploaded_files:
+        MAX_TOTAL_CHARS = 300000  # ~100k tokens total untuk semua PDF
         pdf_texts = []
         total_pages_all = 0
+        total_chars_used = 0
         for f in uploaded_files:
-            txt, pages = extract_pdf_text(f)
+            remaining = max(30000, MAX_TOTAL_CHARS - total_chars_used)
+            txt, pages = extract_pdf_text(f, max_chars=remaining)
             total_pages_all += pages
+            total_chars_used += len(txt)
             pdf_texts.append({"name": f.name, "text": txt, "pages": pages})
 
         file_names = ", ".join([f"{p['name']} ({p['pages']}pg)" for p in pdf_texts])
