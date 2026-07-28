@@ -1119,10 +1119,15 @@ def build_download_pdf(result, rows):
         def add_row(self, label, value):
             self.set_font("Helvetica", "B", 9)
             self.set_text_color(60, 60, 60)
-            self.cell(55, 6, f"  {label}", new_x="END")
-            self.set_font("Helvetica", "", 9)
+            label_w = 50
+            self.cell(label_w, 6, f"  {str(label)[:35]}", new_x="END")
+            self.set_font("Helvetica", "", 8)
             self.set_text_color(30, 30, 30)
-            self.multi_cell(0, 6, str(value))
+            avail = self.w - self.l_margin - self.r_margin - label_w
+            if avail < 20:
+                avail = self.w - self.l_margin - self.r_margin
+                self.ln()
+            self.multi_cell(avail, 5, str(value)[:300])
 
         def status_icon(self, status):
             s = str(status)
@@ -1500,16 +1505,19 @@ with tab_analisis:
             rows = render_results(result)
 
             st.markdown("---")
-            report_pdf = build_download_pdf(result, rows)
             col_dl, col_new = st.columns([3, 1])
             with col_dl:
-                st.download_button(
-                    "📥 Descargar Informe (.pdf)",
-                    data=report_pdf,
-                    file_name=f"laporan_blossom_{datetime.now(WIB).strftime('%Y%m%d_%H%M%S')}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True,
-                )
+                try:
+                    report_pdf = build_download_pdf(result, rows)
+                    st.download_button(
+                        "📥 Descargar Informe (.pdf)",
+                        data=report_pdf,
+                        file_name=f"laporan_blossom_{datetime.now(WIB).strftime('%Y%m%d_%H%M%S')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                    )
+                except Exception:
+                    st.warning("⚠️ No se pudo generar el PDF.")
             with col_new:
                 if st.button("🔄 Nuevo", use_container_width=True, key="clear_bottom"):
                     st.session_state["clear_files"] += 1
@@ -1523,14 +1531,24 @@ with tab_analisis:
             st.info("💡 Mostrando el último análisis. Sube nuevos archivos para un nuevo análisis.")
             rows = render_results(result)
             st.markdown("---")
-            report_pdf = build_download_pdf(result, rows)
-            st.download_button(
-                "📥 Descargar Informe (.pdf)",
-                data=report_pdf,
-                file_name=f"laporan_blossom_{datetime.now(WIB).strftime('%Y%m%d_%H%M%S')}.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-            )
+            col_dl2, col_new2 = st.columns([3, 1])
+            with col_dl2:
+                try:
+                    report_pdf = build_download_pdf(result, rows)
+                    st.download_button(
+                        "📥 Descargar Informe (.pdf)",
+                        data=report_pdf,
+                        file_name=f"laporan_blossom_{datetime.now(WIB).strftime('%Y%m%d_%H%M%S')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                    )
+                except Exception:
+                    st.warning("⚠️ No se pudo generar el PDF.")
+            with col_new2:
+                if st.button("🔄 Nuevo", use_container_width=True, key="clear_cached"):
+                    st.session_state["clear_files"] += 1
+                    st.session_state.pop("analysis_result", None)
+                    st.rerun()
         else:
             st.markdown("")
             col_a, col_b, col_c = st.columns(3)
