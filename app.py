@@ -302,6 +302,7 @@ SYSTEM_PROMPT = """Anda adalah analis senior verifikasi dokumen impor dengan ket
 - Identifikasi mana dokumen PI dan mana Pertek berdasarkan isi dan header dokumen.
 - Jika ada lebih dari 2 dokumen, identifikasi juga: PI lama, PI baru (draft), Pertek, dan Rencana Distribusi.
 - Dokumen rencana distribusi biasanya berjudul "RENCANA DISTRIBUSI" atau "Rencana Distribusi Tahun ..." berisi tabel alokasi barang ke mitra.
+- HATI-HATI BACA ANGKA: Format Indonesia → titik (.) = pemisah ribuan, koma (,) = desimal. Contoh: "1.215.305 Pieces" = 1215305 buah. Teks PDF kadang menghilangkan titik atau menggabungkan angka — baca konteks tabel untuk memastikan angka yang benar.
 
 === PRINSIP PERBANDINGAN ===
 - Bandingkan MAKNA/ISI, bukan format tulisan. Beda urutan kata, singkatan, atau bahasa tapi isi sama → SESUAI.
@@ -322,6 +323,9 @@ LANGKAH 2: SPESIFIKASI BARANG (ITEM PER ITEM)
   b) Uraian/nama komoditi (bandingkan makna, bukan format)
   c) Spesifikasi teknis (grade, ukuran, standar, ketebalan, dll)
   d) Jumlah dan satuan (angka HARUS sama persis)
+- PENTING FORMAT ANGKA: Dokumen Indonesia menggunakan TITIK sebagai pemisah ribuan dan KOMA sebagai desimal. Contoh: "1.215.305" = satu juta dua ratus lima belas ribu tiga ratus lima, "57.750,0000" = lima puluh tujuh ribu tujuh ratus lima puluh. JANGAN salah baca titik pemisah ribuan sebagai desimal. Baca angka dengan TELITI dari tabel PDF.
+- Jika angka di PI dan Pertek terlihat berbeda tapi sebenarnya formatnya berbeda (misal "1215305" vs "1.215.305"), itu SESUAI.
+- Jika jumlah benar-benar berbeda (misal PI=490 vs Pertek=1.215.305), itu TIDAK SESUAI — tulis kedua angka di field perbedaan.
 - Buat ringkasan keseluruhan untuk: hs_code, uraian_barang, spesifikasi_teknis, jumlah_satuan, negara_asal, negara_muat, pelabuhan_tujuan.
 - Negara asal: bandingkan negara asal barang antara PI dan Pertek.
 - Negara muat: catat negara muat yang tercantum di PI.
