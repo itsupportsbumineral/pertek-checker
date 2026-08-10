@@ -376,6 +376,12 @@ LANGKAH 6: KESIMPULAN
   * Identifikasi PI LAMA = dokumen PI yang sudah ada nomor dan tanggal resmi
   * UTAMA: Bandingkan PI BARU (draft) vs PERTEK — ini yang jadi acuan semua analisis Langkah 1-4
   * SEKUNDER: Bandingkan PI BARU vs PI LAMA untuk mencatat apa saja yang berubah (field "perubahan" di kesimpulan)
+- KRITIS — KOLOM "SEMULA" vs "MENJADI":
+  * Dokumen PI Perubahan biasanya punya 2 kolom jumlah: "Semula" (nilai lama) dan "Menjadi" (nilai baru/revisi).
+  * Untuk perbandingan dengan Pertek: SELALU gunakan kolom "MENJADI" (nilai baru), JANGAN kolom "Semula".
+  * Kolom "Semula" hanya untuk mencatat apa yang berubah, BUKAN untuk dibandingkan dengan Pertek.
+  * Contoh: PI Semula=180.000, PI Menjadi=48.000, Pertek=48.000 → SESUAI (karena Menjadi=Pertek).
+  * Jika kamu salah pakai kolom Semula untuk perbandingan, hasilnya akan salah semua!
 - Untuk field "info":
   * nomor_pi → tulis "Draft/Belum dinomori" (JANGAN isi nomor PI lama!)
   * tanggal_pi → tulis "Draft"
