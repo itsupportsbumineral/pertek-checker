@@ -517,7 +517,12 @@ def build_user_prompt(pdf_texts):
         prompt += f"DOKUMEN: {item['name']} ({item['pages']} halaman)\n"
         prompt += f"{'='*60}\n"
         prompt += item["text"] + "\n\n"
-    prompt += "Identifikasi mana PI dan mana Pertek, lalu cocokkan seluruh data. Output JSON saja."
+    prompt += """Identifikasi mana PI dan mana Pertek, lalu cocokkan seluruh data. Output JSON saja.
+
+PERINGATAN PI PERUBAHAN: Jika ini PI Perubahan, dokumen PI punya kolom SEMULA (lama) dan MENJADI (baru).
+- Untuk jumlah_pi di daftar_barang: WAJIB isi dengan nilai MENJADI, BUKAN Semula.
+- Bandingkan nilai MENJADI dari PI dengan nilai Pertek.
+- Contoh: Semula=180.000, Menjadi=48.000, Pertek=48.000 → jumlah_pi="48.000", status="Sesuai"."""
     return prompt
 
 
@@ -707,6 +712,58 @@ def postprocess_result(result, pdf_texts):
             pj = dist.get("penanggung_jawab_pertek", "")
             if pj and pj.lower() not in ("tidak tersedia", "-", "") and not _is_person_name(pj):
                 dist["penanggung_jawab_pertek"] = "Periksa manual di dokumen Pertek"
+
+    # Fallback 3: PI Perubahan — fix jika AI salah pakai kolom Semula bukan Menjadi
+    is_perubahan = info.get("is_pi_perubahan", False)
+    if is_perubahan:
+        spec = result.get("spesifikasi_barang") or {}
+        if isinstance(spec, list):
+            spec = spec[0] if spec else {}
+        daftar = spec.get("daftar_barang", [])
+        fixed_count = 0
+        for item in daftar:
+            if "Tidak" in str(item.get("status", "")):
+                jumlah_pi = str(item.get("jumlah_pi", "")).strip()
+                jumlah_pertek = str(item.get("jumlah_pertek", "")).strip()
+                perbedaan = str(item.get("perbedaan", ""))
+
+                # Normalisasi angka: hapus titik ribuan, ganti koma desimal jadi titik
+                def _norm_num(s):
+                    s = re.sub(r'[^\d.,]', '', str(s))
+                    # Jika format Indonesia (titik ribuan, koma desimal): 1.215.305 atau 48.000
+                    if '.' in s and ',' in s:
+                        s = s.replace('.', '').replace(',', '.')
+                    elif s.count('.') > 1:
+                        s = s.replace('.', '')
+                    elif ',' in s:
+                        s = s.replace(',', '.')
+                    try:
+                        return float(s)
+                    except (ValueError, TypeError):
+                        return None
+
+                pi_num = _norm_num(jumlah_pi)
+                pertek_num = _norm_num(jumlah_pertek)
+
+                # Jika setelah normalisasi angkanya sama → AI salah pakai Semula
+                if pi_num is not None and pertek_num is not None and pi_num == pertek_num:
+                    item["status"] = "Sesuai"
+                    item["perbedaan"] = ""
+                    fixed_count += 1
+
+        if fixed_count > 0:
+            # Update ringkasan
+            total_sesuai = sum(1 for i in daftar if "Tidak" not in str(i.get("status", "")))
+            spec["total_sesuai"] = total_sesuai
+            spec["total_tidak_sesuai"] = len(daftar) - total_sesuai
+            if total_sesuai == len(daftar):
+                spec["status"] = "Sesuai"
+            ringkasan = spec.get("ringkasan", {})
+            if isinstance(ringkasan, dict):
+                js = ringkasan.get("jumlah_satuan", {})
+                if isinstance(js, dict) and spec["total_tidak_sesuai"] == 0:
+                    js["status"] = "Sesuai"
+                    js["keterangan"] = ""
 
     return result
 
