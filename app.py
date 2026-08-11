@@ -345,6 +345,8 @@ LANGKAH 4: RENCANA DISTRIBUSI (KHUSUS API-U)
     - PENANGGUNG JAWAB PERTEK: Cari NAMA ORANG di bagian "Penanggung Jawab"/"Penanggungjawab" di Pertek (biasanya halaman awal).
     - Bandingkan kedua nama. Beda nama → Tidak Sesuai.
     - Per item alokasi: jumlah distribusi HARUS ≤ jumlah Pertek. Melebihi → Tidak Sesuai.
+    - PERHATIAN SATUAN: TNE = ton = tonne. Jika distribusi "6.000 TNE" dan Pertek "6.000,0000 ton" → SAMA (6000 ton). Jangan anggap beda karena beda satuan TNE/ton.
+    - PERHATIAN PI PERUBAHAN: Jika Pertek punya kolom Semula/Menjadi, gunakan nilai MENJADI untuk perbandingan, BUKAN Semula.
     - List semua mitra/pengguna akhir beserta alamat.
   * Jika TIDAK ditemukan → ada = false.
 - Jika bukan API-U → ada = false.
@@ -657,6 +659,21 @@ def _extract_penandatangan_from_text(text):
     return None
 
 
+def _norm_num(s):
+    """Normalisasi angka format Indonesia: titik=ribuan, koma=desimal. Hapus satuan."""
+    s = re.sub(r'[^\d.,]', '', str(s))
+    if '.' in s and ',' in s:
+        s = s.replace('.', '').replace(',', '.')
+    elif s.count('.') > 1:
+        s = s.replace('.', '')
+    elif ',' in s:
+        s = s.replace(',', '.')
+    try:
+        return float(s)
+    except (ValueError, TypeError):
+        return None
+
+
 def postprocess_result(result, pdf_texts):
     """Perbaiki hasil AI dengan fallback dari teks PDF langsung."""
     info = result.get("info", {})
@@ -725,22 +742,6 @@ def postprocess_result(result, pdf_texts):
             if "Tidak" in str(item.get("status", "")):
                 jumlah_pi = str(item.get("jumlah_pi", "")).strip()
                 jumlah_pertek = str(item.get("jumlah_pertek", "")).strip()
-                perbedaan = str(item.get("perbedaan", ""))
-
-                # Normalisasi angka: hapus titik ribuan, ganti koma desimal jadi titik
-                def _norm_num(s):
-                    s = re.sub(r'[^\d.,]', '', str(s))
-                    # Jika format Indonesia (titik ribuan, koma desimal): 1.215.305 atau 48.000
-                    if '.' in s and ',' in s:
-                        s = s.replace('.', '').replace(',', '.')
-                    elif s.count('.') > 1:
-                        s = s.replace('.', '')
-                    elif ',' in s:
-                        s = s.replace(',', '.')
-                    try:
-                        return float(s)
-                    except (ValueError, TypeError):
-                        return None
 
                 pi_num = _norm_num(jumlah_pi)
                 pertek_num = _norm_num(jumlah_pertek)
@@ -764,6 +765,31 @@ def postprocess_result(result, pdf_texts):
                 if isinstance(js, dict) and spec["total_tidak_sesuai"] == 0:
                     js["status"] = "Sesuai"
                     js["keterangan"] = ""
+
+    # Fallback 4: Alokasi Rencana Distribusi — normalisasi angka + satuan (TNE=ton)
+    alokasi = dist.get("alokasi", [])
+    for a in alokasi:
+        if "Tidak" in str(a.get("status", "")):
+            jml_dist = str(a.get("jumlah_distribusi", "")).strip()
+            jml_pertek = str(a.get("jumlah_pertek", "")).strip()
+
+            dist_num = _norm_num(jml_dist)
+            pertek_num = _norm_num(jml_pertek)
+
+            if dist_num is not None and pertek_num is not None:
+                # Jika sama setelah normalisasi → fix
+                if dist_num == pertek_num:
+                    a["status"] = "Sesuai"
+                # Distribusi ≤ Pertek juga OK
+                elif dist_num <= pertek_num:
+                    a["status"] = "Sesuai"
+
+    # Update status distribusi keseluruhan
+    if alokasi:
+        all_ok = all("Tidak" not in str(a.get("status", "")) for a in alokasi)
+        if all_ok and "Tidak" in str(dist.get("status", "")):
+            dist["status"] = "Sesuai"
+            dist["keterangan"] = ""
 
     return result
 
