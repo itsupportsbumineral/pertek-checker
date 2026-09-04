@@ -1510,7 +1510,21 @@ with tab_analisis:
     )
 
     if uploaded_files:
+        MAX_FILES = 10
+        MAX_TOTAL_MB = 50
         MAX_TOTAL_CHARS = 300000  # ~100k tokens total untuk semua PDF
+
+        # --- Validasi jumlah file ---
+        if len(uploaded_files) > MAX_FILES:
+            st.error(f"⚠️ Máximo {MAX_FILES} archivos a la vez. Subiste {len(uploaded_files)}. Quita algunos e inténtalo de nuevo.")
+            st.stop()
+
+        # --- Validasi total ukuran file ---
+        total_size_mb = sum(f.size for f in uploaded_files) / (1024 * 1024)
+        if total_size_mb > MAX_TOTAL_MB:
+            st.error(f"⚠️ Tamaño total máximo: {MAX_TOTAL_MB} MB. Tus archivos pesan {total_size_mb:.1f} MB. Quita algunos e inténtalo de nuevo.")
+            st.stop()
+
         pdf_texts = []
         total_pages_all = 0
         total_chars_used = 0
