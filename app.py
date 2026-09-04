@@ -323,6 +323,13 @@ LANGKAH 2: SPESIFIKASI BARANG (ITEM PER ITEM)
   b) Uraian/nama komoditi (bandingkan makna, bukan format)
   c) Spesifikasi teknis (grade, ukuran, standar, ketebalan, dll)
   d) Jumlah dan satuan (angka HARUS sama persis)
+- KRITIS — CROSS-CHECK URAIAN HS vs SPESIFIKASI TEKNIS:
+  * Uraian HS Code sering mengandung BATASAN TEKNIS (ketebalan, diameter, kadar, dimensi, dll). Contoh: HS 7210.49.91 → "ketebalan tidak melebihi 1,2 mm".
+  * WAJIB periksa apakah spesifikasi teknis di kolom spesifikasi/deskripsi barang MEMATUHI batasan dalam uraian HS tersebut.
+  * Jika spesifikasi teknis mencantumkan nilai yang MELAMPAUI batasan uraian HS → TIDAK SESUAI.
+  * Contoh: HS 7210.49.91 (ketebalan ≤1,2 mm) tapi spesifikasi mencantumkan "0.5mm-0.6mm-0.75mm-1.0mm-1.2mm-1.5mm-2.0mm" → TIDAK SESUAI karena 1.5mm dan 2.0mm melebihi batas 1,2mm.
+  * Tulis perbedaan dengan JELAS: "Uraian HS membatasi ketebalan ≤1,2 mm, tetapi spesifikasi teknis mencantumkan ketebalan hingga 2,0 mm (melebihi batas HS)."
+  * Ini berlaku untuk SEMUA jenis batasan: ketebalan, lebar, diameter, kadar karbon, berat, dll.
 - PENTING FORMAT ANGKA: Dokumen Indonesia menggunakan TITIK sebagai pemisah ribuan dan KOMA sebagai desimal. Contoh: "1.215.305" = satu juta dua ratus lima belas ribu tiga ratus lima, "57.750,0000" = lima puluh tujuh ribu tujuh ratus lima puluh. JANGAN salah baca titik pemisah ribuan sebagai desimal. Baca angka dengan TELITI dari tabel PDF.
 - Jika angka di PI dan Pertek terlihat berbeda tapi sebenarnya formatnya berbeda (misal "1215305" vs "1.215.305"), itu SESUAI.
 - Jika jumlah benar-benar berbeda (misal PI=490 vs Pertek=1.215.305), itu TIDAK SESUAI — tulis kedua angka di field perbedaan.
