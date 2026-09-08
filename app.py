@@ -386,11 +386,13 @@ LANGKAH 6: KESIMPULAN
   * UTAMA: Bandingkan PI BARU (draft) vs PERTEK — ini yang jadi acuan semua analisis Langkah 1-4
   * SEKUNDER: Bandingkan PI BARU vs PI LAMA untuk mencatat apa saja yang berubah (field "perubahan" di kesimpulan)
 - KRITIS — KOLOM "SEMULA" vs "MENJADI":
-  * Dokumen PI Perubahan biasanya punya 2 kolom jumlah: "Semula" (nilai lama) dan "Menjadi" (nilai baru/revisi).
-  * Untuk perbandingan dengan Pertek: SELALU gunakan kolom "MENJADI" (nilai baru), JANGAN kolom "Semula".
-  * Kolom "Semula" hanya untuk mencatat apa yang berubah, BUKAN untuk dibandingkan dengan Pertek.
-  * Contoh: PI Semula=180.000, PI Menjadi=48.000, Pertek=48.000 → SESUAI (karena Menjadi=Pertek).
-  * Jika kamu salah pakai kolom Semula untuk perbandingan, hasilnya akan salah semua!
+  * Dokumen PI Perubahan dan Pertek Perubahan KEDUANYA punya bagian "Semula" (nilai lama) dan "Menjadi" (nilai baru/revisi).
+  * WAJIB bandingkan SEJAJAR: PI Semula vs Pertek Semula, dan PI Menjadi vs Pertek Menjadi.
+  * JANGAN PERNAH bandingkan PI Menjadi vs Pertek Semula atau sebaliknya — ini akan menghasilkan false mismatch!
+  * Contoh BENAR: PI Semula=58,41 & Pertek Semula=58,41 → SESUAI. PI Menjadi=60 & Pertek Menjadi=60 → SESUAI.
+  * Contoh SALAH: PI Menjadi=60 vs Pertek Semula=58,41 → ini bukan ketidaksesuaian, kamu salah bandingkan!
+  * Untuk field jumlah_pi dan jumlah_pertek di output: gunakan nilai dari bagian MENJADI (keduanya).
+  * Jika kamu salah pasangkan Semula vs Menjadi, hasilnya akan salah semua!
 - Untuk field "info":
   * nomor_pi → tulis "Draft/Belum dinomori" (JANGAN isi nomor PI lama!)
   * tanggal_pi → tulis "Draft"
