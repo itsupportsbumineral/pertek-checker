@@ -557,7 +557,13 @@ def call_gemini(api_key, model, system_prompt, user_prompt):
 
 def analyze_documents(api_key, pdf_texts):
     user_prompt = build_user_prompt(pdf_texts)
-    models = ["gemini-3.1-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash"]
+    models = [
+        "gemini-2.5-flash-lite-preview-06-17",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-1.5-flash",
+    ]
     last_error = ""
     progress = st.empty()
 
