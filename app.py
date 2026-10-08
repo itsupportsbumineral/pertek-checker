@@ -557,7 +557,7 @@ def call_gemini(api_key, model, system_prompt, user_prompt):
 
 def analyze_documents(api_key, pdf_texts):
     user_prompt = build_user_prompt(pdf_texts)
-    models = ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.5-flash"]
+    models = ["gemini-3.1-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash"]
     last_error = ""
     progress = st.empty()
 
@@ -608,7 +608,26 @@ def analyze_documents(api_key, pdf_texts):
                     time.sleep(2)
                     break
 
-            response.raise_for_status()
+            if response.status_code in (401, 403):
+                try:
+                    err_msg = response.json().get("error", {}).get("message", "")
+                except Exception:
+                    err_msg = ""
+                raise ValueError(f"API Key tidak valid atau saldo habis. {err_msg}")
+
+            if response.status_code in (400, 404):
+                # Model tidak ditemukan, skip ke model berikutnya
+                progress.warning(f"⚠️ Model {model} tidak tersedia, mencoba model lain...")
+                time.sleep(1)
+                break
+
+            if response.status_code != 200:
+                try:
+                    err_msg = response.json().get("error", {}).get("message", "")
+                except Exception:
+                    err_msg = response.text[:200]
+                last_error = f"Error {response.status_code}: {err_msg}"
+                break
             data = response.json()
             candidate = data["candidates"][0]
 
