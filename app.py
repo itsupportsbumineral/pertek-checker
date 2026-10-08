@@ -557,42 +557,55 @@ def call_gemini(api_key, model, system_prompt, user_prompt):
 
 def analyze_documents(api_key, pdf_texts):
     user_prompt = build_user_prompt(pdf_texts)
-    models = ["gemini-3.1-flash-lite"]
+    models = ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.5-flash"]
     last_error = ""
+    progress = st.empty()
 
-    for model in models:
-        for attempt in range(4):
+    for model_idx, model in enumerate(models):
+        for attempt in range(3):
             try:
+                progress.info(f"🔄 Mencoba {model} (percobaan {attempt + 1}/3)...")
                 response = call_gemini(api_key, model, SYSTEM_PROMPT, user_prompt)
             except requests.exceptions.Timeout:
                 last_error = "Request timeout. Server terlalu lama merespon."
-                if attempt < 3:
-                    time.sleep((attempt + 1) * 5)
+                if attempt < 2:
+                    wait = (attempt + 1) * 8
+                    progress.warning(f"⏳ Timeout, menunggu {wait} detik sebelum coba lagi...")
+                    time.sleep(wait)
                     continue
                 else:
                     break
             except requests.exceptions.ConnectionError:
                 last_error = "Tidak bisa terhubung ke server Gemini."
-                if attempt < 3:
-                    time.sleep((attempt + 1) * 5)
+                if attempt < 2:
+                    wait = (attempt + 1) * 8
+                    progress.warning(f"⏳ Koneksi gagal, menunggu {wait} detik...")
+                    time.sleep(wait)
                     continue
                 else:
                     break
 
             if response.status_code == 429:
-                last_error = "Rate limit tercapai (terlalu banyak request). Tunggu sebentar."
-                if attempt < 3:
-                    time.sleep((attempt + 1) * 15)
+                last_error = "Rate limit tercapai (terlalu banyak request)."
+                if attempt < 2:
+                    wait = (attempt + 1) * 20
+                    progress.warning(f"⏳ Rate limit, menunggu {wait} detik...")
+                    time.sleep(wait)
                     continue
                 else:
                     break
 
             if response.status_code in (500, 502, 503):
                 last_error = f"Server Gemini error (kode {response.status_code})."
-                if attempt < 3:
-                    time.sleep((attempt + 1) * 5)
+                if attempt < 2:
+                    wait = (attempt + 1) * 10
+                    progress.warning(f"⏳ Server error {response.status_code}, menunggu {wait} detik...")
+                    time.sleep(wait)
                     continue
                 else:
+                    # Move to next model
+                    progress.warning(f"⚠️ {model} gagal, mencoba model lain...")
+                    time.sleep(2)
                     break
 
             response.raise_for_status()
@@ -608,8 +621,10 @@ def analyze_documents(api_key, pdf_texts):
                 lines = [l for l in lines if not l.strip().startswith("```")]
                 response_text = "\n".join(lines)
 
+            progress.empty()
             return json.loads(response_text)
 
+    progress.empty()
     raise ValueError(f"Gagal setelah beberapa percobaan. {last_error} Coba lagi dalam 1-2 menit.")
 
 
